@@ -4,7 +4,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use niri_config::utils::MergeWith as _;
-use niri_config::{CenterFocusedColumn, PresetSize, Struts};
+use niri_config::{CenterFocusedColumn, MainAxis, PresetSize, Struts};
 use niri_ipc::{ColumnDisplay, SizeChange, WindowLayout};
 use ordered_float::NotNan;
 use smithay::backend::renderer::gles::GlesRenderer;
@@ -30,6 +30,37 @@ use crate::window::ResolvedWindowRules;
 
 /// Amount of touchpad movement to scroll the view for the width of one working area.
 const VIEW_GESTURE_WORKING_AREA_MOVEMENT: f64 = 1200.;
+
+fn map_point_for_axis(axis: MainAxis, point: Point<f64, Logical>) -> Point<f64, Logical> {
+    if axis == MainAxis::Vertical {
+        Point::from((point.y, point.x))
+    } else {
+        point
+    }
+}
+
+fn map_size_for_axis(axis: MainAxis, size: Size<f64, Logical>) -> Size<f64, Logical> {
+    if axis == MainAxis::Vertical {
+        Size::from((size.h, size.w))
+    } else {
+        size
+    }
+}
+
+fn map_size_i32_for_axis(axis: MainAxis, size: Size<i32, Logical>) -> Size<i32, Logical> {
+    if axis == MainAxis::Vertical {
+        Size::from((size.h, size.w))
+    } else {
+        size
+    }
+}
+
+fn map_rect_for_axis(axis: MainAxis, rect: Rectangle<f64, Logical>) -> Rectangle<f64, Logical> {
+    Rectangle::new(
+        map_point_for_axis(axis, rect.loc),
+        map_size_for_axis(axis, rect.size),
+    )
+}
 
 /// A scrollable-tiling space for windows.
 #[derive(Debug)]
@@ -320,6 +351,9 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         clock: Clock,
         options: Rc<Options>,
     ) -> Self {
+        let axis = options.layout.main_axis;
+        let view_size = map_size_for_axis(axis, view_size);
+        let parent_area = map_rect_for_axis(axis, parent_area);
         let working_area = compute_working_area(parent_area, scale, options.layout.struts);
 
         Self {
@@ -347,6 +381,9 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         scale: f64,
         options: Rc<Options>,
     ) {
+        let axis = options.layout.main_axis;
+        let view_size = map_size_for_axis(axis, view_size);
+        let parent_area = map_rect_for_axis(axis, parent_area);
         let working_area = compute_working_area(parent_area, scale, options.layout.struts);
 
         for (column, data) in zip(&mut self.columns, &mut self.data) {
@@ -364,6 +401,26 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         if !self.columns.is_empty() && !self.view_offset.is_gesture() {
             self.animate_view_offset_to_column(None, self.active_column_idx, None);
         }
+    }
+
+    fn main_axis(&self) -> MainAxis {
+        self.options.layout.main_axis
+    }
+
+    fn map_point_in(&self, point: Point<f64, Logical>) -> Point<f64, Logical> {
+        map_point_for_axis(self.main_axis(), point)
+    }
+
+    fn map_point_out(&self, point: Point<f64, Logical>) -> Point<f64, Logical> {
+        map_point_for_axis(self.main_axis(), point)
+    }
+
+    fn map_size_i32_out(&self, size: Size<i32, Logical>) -> Size<i32, Logical> {
+        map_size_i32_for_axis(self.main_axis(), size)
+    }
+
+    fn map_rect_out(&self, rect: Rectangle<f64, Logical>) -> Rectangle<f64, Logical> {
+        map_rect_for_axis(self.main_axis(), rect)
     }
 
     pub fn update_shaders(&mut self) {
@@ -505,12 +562,13 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             Size::from((0., 0.))
         };
 
-        compute_toplevel_bounds(
+        let bounds = compute_toplevel_bounds(
             border_config,
             self.working_area.size,
             extra_size,
             self.options.layout.gaps,
-        )
+        );
+        self.map_size_i32_out(bounds)
     }
 
     pub fn new_window_size(
@@ -569,7 +627,8 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             full_height
         };
 
-        Size::from((width, max(height.floor() as i32, 1)))
+        let size = Size::from((width, max(height.floor() as i32, 1)));
+        self.map_size_i32_out(size)
     }
 
     pub fn is_centering_focused_column(&self) -> bool {
@@ -838,6 +897,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             return InsertPosition::NewColumn(0);
         }
 
+        let pos = self.map_point_in(pos);
         let x = pos.x + self.view_pos();
 
         // Aim for the center of the gap.
@@ -1481,10 +1541,12 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         window: &W::Id,
         blocker: TransactionBlocker,
     ) {
+        let axis = self.main_axis();
         let (tile, mut tile_pos) = self
             .tiles_with_render_positions_mut(false)
             .find(|(tile, _)| tile.window().id() == window)
             .unwrap();
+        tile_pos = map_point_for_axis(axis, tile_pos);
 
         let Some(snapshot) = tile.take_unmap_snapshot() else {
             return;
@@ -2431,11 +2493,13 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         &self,
     ) -> impl Iterator<Item = (&Tile<W>, Point<f64, Logical>, bool)> {
         let scale = self.scale;
+        let axis = self.main_axis();
         self.columns_with_render_positions()
             .flat_map(move |(col, col_pos)| {
                 col.tiles_in_render_order()
                     .map(move |(tile, tile_off, visible)| {
                         let pos = col_pos + tile_off + tile.render_offset();
+                        let pos = map_point_for_axis(axis, pos);
                         // Round to physical pixels.
                         let pos = pos.to_physical_precise_round(scale).to_logical(scale);
                         (tile, pos, visible)
@@ -2448,11 +2512,13 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         round: bool,
     ) -> impl Iterator<Item = (&mut Tile<W>, Point<f64, Logical>)> {
         let scale = self.scale;
+        let axis = self.main_axis();
         self.columns_with_render_positions_mut()
             .flat_map(move |(col, col_pos)| {
                 col.tiles_in_render_order_mut()
                     .map(move |(tile, tile_off)| {
                         let mut pos = col_pos + tile_off + tile.render_offset();
+                        pos = map_point_for_axis(axis, pos);
                         // Round to physical pixels.
                         if round {
                             pos = pos.to_physical_precise_round(scale).to_logical(scale);
@@ -2582,7 +2648,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             hint_area.loc.x -= self.view_pos();
         }
 
-        Some(hint_area)
+        Some(self.map_rect_out(hint_area))
     }
 
     /// Returns the geometry of the active window relative to and clamped to the view.
@@ -2596,12 +2662,13 @@ impl<W: LayoutElement> ScrollingSpace<W> {
 
         let (tile, tile_off) = col.tiles().nth(col.active_tile_idx).unwrap();
 
-        let window_pos = view_off + tile_off + tile.window_loc();
-        let window_size = tile.window_size();
+        let window_pos = view_off + tile_off + self.map_point_in(tile.window_loc());
+        let window_size = map_size_for_axis(self.main_axis(), tile.window_size());
         let window_rect = Rectangle::new(window_pos, window_size);
 
         let view = Rectangle::from_size(self.view_size);
         view.intersection(window_rect)
+            .map(|rect| self.map_rect_out(rect))
     }
 
     pub fn popup_target_rect(&self, id: &W::Id) -> Option<Rectangle<f64, Logical>> {
@@ -2620,7 +2687,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
                     target.loc.y -= pos.y;
                     target.loc.y -= tile.window_loc().y;
 
-                    return Some(target);
+                    return Some(self.map_rect_out(target));
                 }
             }
         }
@@ -2954,7 +3021,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         let scale = Scale::from(self.scale);
 
         // Draw the closing windows on top of the other windows.
-        if layer.is_normal() {
+        if layer.is_normal() && self.main_axis() == MainAxis::Horizontal {
             let view_rect = Rectangle::new(Point::from((self.view_pos(), 0.)), self.view_size);
             for closing in self.closing_windows.iter().rev() {
                 let elem = closing.render(ctx.as_gles(), view_rect, scale);
@@ -2978,13 +3045,15 @@ impl<W: LayoutElement> ScrollingSpace<W> {
 
             // Draw the tab indicator on top.
             {
-                let pos = col_pos.to_physical_precise_round(scale).to_logical(scale);
+                let pos = self.map_point_out(col_pos);
+                let pos = pos.to_physical_precise_round(scale).to_logical(scale);
                 col.tab_indicator
                     .render(ctx.renderer, pos, &mut |elem| push(elem.into()));
             }
 
             for (tile, tile_off, visible) in col.tiles_in_render_order() {
                 let tile_pos = col_pos + tile_off + tile.render_offset();
+                let tile_pos = self.map_point_out(tile_pos);
                 // Round to physical pixels.
                 let tile_pos = tile_pos.to_physical_precise_round(scale).to_logical(scale);
 
@@ -3014,6 +3083,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
 
     pub fn window_under(&self, pos: Point<f64, Logical>) -> Option<(&W, HitType)> {
         // This matches self.tiles_with_render_positions().
+        let pos = self.map_point_in(pos);
         let scale = self.scale;
         for (col, col_pos) in self.columns_with_render_positions() {
             // Hit the tab indicator.
@@ -3042,8 +3112,11 @@ impl<W: LayoutElement> ScrollingSpace<W> {
                 // Round to physical pixels.
                 let tile_pos = tile_pos.to_physical_precise_round(scale).to_logical(scale);
 
-                if let Some(rv) = HitType::hit_tile(tile, tile_pos, pos) {
-                    return Some(rv);
+                if let Some((win, mut hit)) = HitType::hit_tile(tile, tile_pos, pos) {
+                    if let HitType::Input { win_pos } = &mut hit {
+                        *win_pos = self.map_point_out(*win_pos);
+                    }
+                    return Some((win, hit));
                 }
             }
         }

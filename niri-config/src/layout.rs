@@ -14,6 +14,7 @@ pub struct Layout {
     pub shadow: Shadow,
     pub tab_indicator: TabIndicator,
     pub insert_hint: InsertHint,
+    pub main_axis: MainAxis,
     pub preset_group_widths: Vec<PresetSize>,
     pub default_group_width: Option<PresetSize>,
     pub preset_window_heights: Vec<PresetSize>,
@@ -34,6 +35,7 @@ impl Default for Layout {
             shadow: Shadow::default(),
             tab_indicator: TabIndicator::default(),
             insert_hint: InsertHint::default(),
+            main_axis: MainAxis::Horizontal,
             preset_group_widths: vec![
                 PresetSize::Proportion(1. / 3.),
                 PresetSize::Proportion(0.5),
@@ -72,6 +74,7 @@ impl MergeWith<LayoutPart> for Layout {
 
         merge_clone!(
             (self, part),
+            main_axis,
             preset_window_heights,
             center_focused_column,
             default_column_display,
@@ -116,6 +119,8 @@ pub struct LayoutPart {
     pub tab_indicator: Option<TabIndicatorPart>,
     #[knuffel(child)]
     pub insert_hint: Option<InsertHintPart>,
+    #[knuffel(child, unwrap(argument))]
+    pub main_axis: Option<MainAxis>,
     #[knuffel(child, unwrap(children))]
     pub preset_group_widths: Option<Vec<PresetSize>>,
     /// Legacy spelling of `preset-group-widths`; the group spelling wins if both are set.
@@ -184,6 +189,13 @@ pub enum CenterFocusedColumn {
     /// Focusing a column will center it if it doesn't fit on the screen together with the
     /// previously focused column.
     OnOverflow,
+}
+
+#[derive(knuffel::DecodeScalar, Debug, Default, PartialEq, Eq, Clone, Copy)]
+pub enum MainAxis {
+    #[default]
+    Horizontal,
+    Vertical,
 }
 
 impl<S> knuffel::Decode<S> for DefaultPresetSize
