@@ -829,6 +829,7 @@ mod tests {
                 }
 
                 center-focused-column "on-overflow"
+                main-axis "vertical"
 
                 default-column-display "tabbed"
 
@@ -1449,6 +1450,7 @@ mod tests {
                         },
                     ),
                 },
+                main_axis: Vertical,
                 preset_group_widths: [
                     Proportion(
                         0.25,
