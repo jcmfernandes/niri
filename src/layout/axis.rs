@@ -93,6 +93,16 @@ impl AxisMap {
         self.size_out(Size::from((main, cross)))
     }
 
+    /// A vector along the main axis with magnitude `main` (cross is zero).
+    pub fn main_vec<N: Coordinate>(self, main: N) -> Point<N, Logical> {
+        self.point_from_main_cross(main, N::from_f64(0.))
+    }
+
+    /// A vector along the cross axis with magnitude `cross` (main is zero).
+    pub fn cross_vec<N: Coordinate>(self, cross: N) -> Point<N, Logical> {
+        self.point_from_main_cross(N::from_f64(0.), cross)
+    }
+
     pub fn resize_edges_in(self, edges: ResizeEdge) -> ResizeEdge {
         if !self.is_vertical() {
             return edges;
