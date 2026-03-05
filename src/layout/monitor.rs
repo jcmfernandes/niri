@@ -916,8 +916,11 @@ impl<W: LayoutElement> Monitor<W> {
         // source workspace itself was removed, don't bother animating this since the removal is
         // instant anyway.
         if let Some(source_workspace_idx) = self.idx_of_ws(source_id) {
-            old_render_pos.y +=
-                self.workspace_switch_span_with_gap(1.) * (source_workspace_idx as f64 - new_idx as f64);
+            let axis = self.overview_axis();
+            old_render_pos += axis.cross_vec(
+                self.workspace_switch_span_with_gap(1.)
+                    * (source_workspace_idx as f64 - new_idx as f64),
+            );
         }
 
         let (tile, new_render_pos) = self.workspaces[new_idx]
@@ -969,8 +972,8 @@ impl<W: LayoutElement> Monitor<W> {
         let column = workspace.remove_active_column().unwrap();
 
         // Animate vertical movement between workspaces.
-        old_render_pos.y +=
-            self.workspace_switch_span_with_gap(1.) * (source_workspace_idx as f64 - new_idx as f64);
+        old_render_pos.y += self.workspace_switch_span_with_gap(1.)
+            * (source_workspace_idx as f64 - new_idx as f64);
 
         // If the view is following the column, match the animation.
         let config = if activate {
