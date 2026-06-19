@@ -15,7 +15,14 @@ pub enum AxisEdge {
     End,
 }
 
+/// Which physical axis of a 2D rectangle an operation should affect.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PhysicalAxis {
+    Width,
+    Height,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct AxisMap {
     main_axis: MainAxis,
 }
