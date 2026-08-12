@@ -377,8 +377,15 @@ impl<W: LayoutElement> Monitor<W> {
         &self.workspaces[self.active_workspace_idx]
     }
 
+    /// Axis map that this monitor uses to arrange its workspaces relative to each other; they are
+    /// stacked along its cross axis.
+    ///
+    /// Comes from the output's configuration rather than from any one workspace: a set of
+    /// workspaces cannot be arranged along two axes at once, and individual workspaces may
+    /// disagree about their orientation. Sourcing this from the active workspace made the whole
+    /// overview rotate 90 degrees whenever a differently-oriented workspace was focused.
     fn overview_axis(&self) -> AxisMap {
-        self.active_workspace_ref().axis()
+        AxisMap::new(self.options.layout.orientation)
     }
 
     fn map_point_out(&self, point: Point<f64, Logical>) -> Point<f64, Logical> {
