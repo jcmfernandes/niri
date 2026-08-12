@@ -66,31 +66,23 @@ pub struct Workspace<W: LayoutElement> {
     /// Current output of this workspace.
     output: Option<Output>,
 
-    /// Latest known output scale for this workspace.
+    /// Latest known output scale, view size and working area for this workspace, together with the
+    /// orientation that interprets them.
     ///
-    /// This should be set from the current workspace output, or, if all outputs have been
-    /// disconnected, preserved until a new output is connected.
-    scale: smithay::output::Scale,
+    /// The scale and view size should be taken from the current workspace output, and the working
+    /// area computed from it; or, if all outputs have been disconnected, preserved until a new
+    /// output is connected. The working area is not rounded to physical pixels; it is similar to
+    /// the view size, but takes into account things like layer shell exclusive zones.
+    ///
+    /// This geometry is physical, unlike the transposed geometry `ScrollingSpace` stores, so
+    /// `dims.axis()` applies to it directly.
+    dims: Dims,
 
     /// Latest known output transform for this workspace.
     ///
     /// This should be set from the current workspace output, or, if all outputs have been
     /// disconnected, preserved until a new output is connected.
     transform: Transform,
-
-    /// Latest known view size for this workspace.
-    ///
-    /// This should be computed from the current workspace output size, or, if all outputs have
-    /// been disconnected, preserved until a new output is connected.
-    view_size: Size<f64, Logical>,
-
-    /// Latest known working area for this workspace.
-    ///
-    /// Not rounded to physical pixels.
-    ///
-    /// This is similar to view size, but takes into account things like layer shell exclusive
-    /// zones.
-    working_area: Rectangle<f64, Logical>,
 
     /// This workspace's shadow in the overview.
     shadow: Shadow,
@@ -240,14 +232,7 @@ impl<W: LayoutElement> Workspace<W> {
 
         let dims = Dims::new(scale, view_size, working_area, options.layout.orientation);
         let scrolling = ScrollingSpace::new(dims, clock.clone(), options.clone());
-
-        let floating = FloatingSpace::new(
-            view_size,
-            working_area,
-            scale.fractional_scale(),
-            clock.clone(),
-            options.clone(),
-        );
+        let floating = FloatingSpace::new(dims, clock.clone(), options.clone());
 
         let shadow_config =
             compute_workspace_shadow_config(options.overview.workspace_shadow, view_size);
@@ -257,10 +242,8 @@ impl<W: LayoutElement> Workspace<W> {
             floating,
             floating_is_active: FloatingActive::No,
             original_output,
-            scale,
+            dims,
             transform: output.current_transform(),
-            view_size,
-            working_area,
             shadow: Shadow::new(shadow_config),
             background_buffer: SolidColorBuffer::new(view_size, options.layout.background_color),
             output: Some(output),
@@ -299,14 +282,7 @@ impl<W: LayoutElement> Workspace<W> {
 
         let dims = Dims::new(scale, view_size, working_area, options.layout.orientation);
         let scrolling = ScrollingSpace::new(dims, clock.clone(), options.clone());
-
-        let floating = FloatingSpace::new(
-            view_size,
-            working_area,
-            scale.fractional_scale(),
-            clock.clone(),
-            options.clone(),
-        );
+        let floating = FloatingSpace::new(dims, clock.clone(), options.clone());
 
         let shadow_config =
             compute_workspace_shadow_config(options.overview.workspace_shadow, view_size);
@@ -316,11 +292,9 @@ impl<W: LayoutElement> Workspace<W> {
             floating,
             floating_is_active: FloatingActive::No,
             output: None,
-            scale,
+            dims,
             transform: Transform::Normal,
             original_output,
-            view_size,
-            working_area,
             shadow: Shadow::new(shadow_config),
             background_buffer: SolidColorBuffer::new(view_size, options.layout.background_color),
             clock,
@@ -341,11 +315,11 @@ impl<W: LayoutElement> Workspace<W> {
     }
 
     pub fn orientation(&self) -> Orientation {
-        self.options.layout.orientation
+        self.dims.orientation()
     }
 
     pub(in crate::layout) fn axis(&self) -> AxisMap {
-        AxisMap::new(self.orientation())
+        self.dims.axis()
     }
 
     pub fn name(&self) -> Option<&String> {
@@ -361,7 +335,7 @@ impl<W: LayoutElement> Workspace<W> {
     }
 
     pub fn scale(&self) -> smithay::output::Scale {
-        self.scale
+        self.dims.scale()
     }
 
     pub fn advance_animations(&mut self) {
@@ -381,7 +355,7 @@ impl<W: LayoutElement> Workspace<W> {
         self.scrolling
             .update_render_elements(is_active && !self.floating_is_active.get(), layer);
 
-        let view_rect = Rectangle::from_size(self.view_size);
+        let view_rect = Rectangle::from_size(self.dims.view_size());
         self.floating.update_render_elements(
             is_active && self.floating_is_active.get(),
             view_rect,
@@ -390,40 +364,37 @@ impl<W: LayoutElement> Workspace<W> {
 
         if layer.is_normal() {
             self.shadow.update_render_elements(
-                self.view_size,
+                self.dims.view_size(),
                 true,
                 CornerRadius::default(),
-                self.scale.fractional_scale(),
+                self.dims.fractional_scale(),
                 1.,
             );
         }
     }
 
     pub fn update_config(&mut self, base_options: Rc<Options>) {
-        let scale = self.scale.fractional_scale();
+        let scale = self.dims.fractional_scale();
         let options = Rc::new(
             Options::clone(&base_options)
                 .with_merged_layout(self.layout_config.as_ref())
                 .adjusted_for_scale(scale),
         );
 
-        let dims = Dims::new(
-            self.scale,
-            self.view_size,
-            self.working_area,
+        // The orientation can change with the options, so rebuild dims from them.
+        self.dims = Dims::new(
+            self.dims.scale(),
+            self.dims.view_size(),
+            self.dims.working_area(),
             options.layout.orientation,
         );
-        self.scrolling.update_config(dims, options.clone());
+        self.scrolling.update_config(self.dims, options.clone());
+        self.floating.update_config(self.dims, options.clone());
 
-        self.floating.update_config(
-            self.view_size,
-            self.working_area,
-            self.scale.fractional_scale(),
-            options.clone(),
+        let shadow_config = compute_workspace_shadow_config(
+            options.overview.workspace_shadow,
+            self.dims.view_size(),
         );
-
-        let shadow_config =
-            compute_workspace_shadow_config(options.overview.workspace_shadow, self.view_size);
         self.shadow.update_config(shadow_config);
 
         self.background_buffer
@@ -525,7 +496,7 @@ impl<W: LayoutElement> Workspace<W> {
 
     fn enter_output_for_window(&self, window: &W) {
         if let Some(output) = &self.output {
-            window.set_preferred_scale_transform(self.scale, self.transform);
+            window.set_preferred_scale_transform(self.dims.scale(), self.transform);
             window.output_enter(output);
         }
     }
@@ -546,33 +517,30 @@ impl<W: LayoutElement> Workspace<W> {
         size: Size<f64, Logical>,
         working_area: Rectangle<f64, Logical>,
     ) {
+        let old_scale = self.dims.scale();
         let scale_transform_changed = self.transform != transform
-            || self.scale.integer_scale() != scale.integer_scale()
-            || self.scale.fractional_scale() != scale.fractional_scale();
-        if !scale_transform_changed && self.view_size == size && self.working_area == working_area {
+            || old_scale.integer_scale() != scale.integer_scale()
+            || old_scale.fractional_scale() != scale.fractional_scale();
+        if !scale_transform_changed
+            && self.dims.view_size() == size
+            && self.dims.working_area() == working_area
+        {
             return;
         }
 
-        let fractional_scale_changed = self.scale.fractional_scale() != scale.fractional_scale();
+        let fractional_scale_changed = old_scale.fractional_scale() != scale.fractional_scale();
 
-        self.scale = scale;
+        self.dims = Dims::new(scale, size, working_area, self.dims.orientation());
         self.transform = transform;
-        self.view_size = size;
-        self.working_area = working_area;
 
         if fractional_scale_changed {
             // Options need to be recomputed for the new scale.
             self.update_config(self.base_options.clone());
         } else {
             // Pass our existing options as is.
-            let dims = Dims::new(scale, size, working_area, self.options.layout.orientation);
-            self.scrolling.update_config(dims, self.options.clone());
-            self.floating.update_config(
-                size,
-                working_area,
-                scale.fractional_scale(),
-                self.options.clone(),
-            );
+            self.scrolling
+                .update_config(self.dims, self.options.clone());
+            self.floating.update_config(self.dims, self.options.clone());
 
             let shadow_config =
                 compute_workspace_shadow_config(self.options.overview.workspace_shadow, size);
@@ -583,20 +551,20 @@ impl<W: LayoutElement> Workspace<W> {
 
         if scale_transform_changed {
             for window in self.windows() {
-                window.set_preferred_scale_transform(self.scale, self.transform);
+                window.set_preferred_scale_transform(self.dims.scale(), self.transform);
             }
         }
     }
 
     pub fn view_size(&self) -> Size<f64, Logical> {
-        self.view_size
+        self.dims.view_size()
     }
 
     pub fn make_tile(&self, window: W) -> Tile<W> {
         Tile::new(
             window,
-            self.view_size,
-            self.scale.fractional_scale(),
+            self.dims.view_size(),
+            self.dims.fractional_scale(),
             self.clock.clone(),
             self.options.clone(),
         )
@@ -854,7 +822,7 @@ impl<W: LayoutElement> Workspace<W> {
         rules: &ResolvedWindowRules,
     ) {
         window.with_surfaces(|surface, data| {
-            send_scale_transform(surface, data, self.scale, self.transform);
+            send_scale_transform(surface, data, self.dims.scale(), self.transform);
         });
 
         let toplevel = window.toplevel().expect("no x11 support");
@@ -865,9 +833,9 @@ impl<W: LayoutElement> Workspace<W> {
         });
         toplevel.with_pending_state(|state| {
             if state.states.contains(xdg_toplevel::State::Fullscreen) {
-                state.size = Some(self.view_size.to_i32_round());
+                state.size = Some(self.dims.view_size().to_i32_round());
             } else if state.states.contains(xdg_toplevel::State::Maximized) {
-                state.size = Some(self.working_area.size.to_i32_round());
+                state.size = Some(self.dims.working_area().size.to_i32_round());
             } else {
                 let size =
                     self.new_window_size(width, height, is_floating, rules, (min_size, max_size));
@@ -1666,7 +1634,7 @@ impl<W: LayoutElement> Workspace<W> {
             return;
         }
 
-        let view_rect = Rectangle::from_size(self.view_size);
+        let view_rect = Rectangle::from_size(self.dims.view_size());
         let floating_focus_ring = focus_ring && self.floating_is_active();
         self.floating.render(
             ctx,
@@ -1916,8 +1884,8 @@ impl<W: LayoutElement> Workspace<W> {
 
         // This working area intentionally does not include extra struts from Options.
         let axis = self.axis();
-        let coord = axis.point_main(pos) - axis.point_main(self.working_area.loc);
-        let span = axis.size_main(self.working_area.size);
+        let coord = axis.point_main(pos) - axis.point_main(self.dims.working_area().loc);
+        let span = axis.size_main(self.dims.working_area().size);
 
         let coord = coord.clamp(0., span);
         let trigger_width = trigger_width.clamp(0., span / 2.);
@@ -1991,7 +1959,7 @@ impl<W: LayoutElement> Workspace<W> {
     }
 
     pub fn working_area(&self) -> Rectangle<f64, Logical> {
-        self.working_area
+        self.dims.working_area()
     }
 
     pub fn layout_config(&self) -> Option<&niri_config::LayoutPart> {
@@ -2014,7 +1982,7 @@ impl<W: LayoutElement> Workspace<W> {
     pub fn verify_invariants(&self, move_win_id: Option<&W::Id>) {
         use approx::assert_abs_diff_eq;
 
-        let scale = self.scale.fractional_scale();
+        let scale = self.dims.fractional_scale();
         assert!(scale > 0.);
         assert!(scale.is_finite());
 
@@ -2026,18 +1994,18 @@ impl<W: LayoutElement> Workspace<W> {
             "options must be base options adjusted for scale"
         );
 
-        assert!(self.view_size.w > 0.);
-        assert!(self.view_size.h > 0.);
+        assert!(self.dims.view_size().w > 0.);
+        assert!(self.dims.view_size().h > 0.);
 
-        assert_eq!(self.background_buffer.size(), self.view_size);
+        assert_eq!(self.background_buffer.size(), self.dims.view_size());
         assert_eq!(
             self.background_buffer.color().components(),
             options.layout.background_color.to_array_unpremul(),
         );
 
         let axis = AxisMap::new(options.layout.orientation);
-        let scrolling_view_size = axis.size_in(self.view_size);
-        let scrolling_parent_area = axis.rect_in(self.working_area);
+        let scrolling_view_size = axis.size_in(self.dims.view_size());
+        let scrolling_parent_area = axis.rect_in(self.dims.working_area());
 
         assert_eq!(scrolling_view_size, self.scrolling.view_size());
         assert_eq!(scrolling_parent_area, self.scrolling.parent_area());
@@ -2045,8 +2013,8 @@ impl<W: LayoutElement> Workspace<W> {
         assert!(Rc::ptr_eq(&self.options, self.scrolling.options()));
         self.scrolling.verify_invariants();
 
-        assert_eq!(self.view_size, self.floating.view_size());
-        assert_eq!(self.working_area, self.floating.working_area());
+        assert_eq!(self.dims.view_size(), self.floating.view_size());
+        assert_eq!(self.dims.working_area(), self.floating.working_area());
         assert_eq!(&self.clock, self.floating.clock());
         assert!(Rc::ptr_eq(&self.options, self.floating.options()));
         self.floating.verify_invariants();
