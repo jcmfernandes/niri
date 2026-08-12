@@ -109,8 +109,9 @@ pub struct ScrollingSpace<W: LayoutElement> {
     ///
     /// The geometry here is stored in scrolling space: the main axis is always `x`, the cross axis
     /// always `y`, regardless of the orientation. Use `.view_size().w` and friends for main-axis
-    /// spans; `Dims::view_size_main()` and the other main/cross accessors assume physical
-    /// coordinates and are *not* correct on these values.
+    /// spans. Do not extract main/cross scalars from these values with `dims.axis()` — they are
+    /// already transposed, and `size_main` and friends would transpose a second time. Using the
+    /// axis to convert to and from physical coordinates (`point_in`, `size_out`, …) is correct.
     dims: Dims,
 
     /// Working area for this space excluding struts.
