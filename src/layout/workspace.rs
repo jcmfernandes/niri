@@ -19,6 +19,7 @@ use smithay::wayland::compositor::with_states;
 use smithay::wayland::shell::xdg::SurfaceCachedState;
 
 use super::axis::{AxisDirection, AxisEdge, AxisMap};
+use super::dims::Dims;
 use super::floating::{FloatingSpace, FloatingSpaceRenderElement};
 use super::scrolling::{
     Column, ColumnWidth, ScrollDirection, ScrollingSpace, ScrollingSpaceRenderElement,
@@ -237,13 +238,8 @@ impl<W: LayoutElement> Workspace<W> {
         let view_size = output_size(&output);
         let working_area = compute_working_area(&output);
 
-        let scrolling = ScrollingSpace::new(
-            view_size,
-            working_area,
-            scale.fractional_scale(),
-            clock.clone(),
-            options.clone(),
-        );
+        let dims = Dims::new(scale, view_size, working_area, options.layout.orientation);
+        let scrolling = ScrollingSpace::new(dims, clock.clone(), options.clone());
 
         let floating = FloatingSpace::new(
             view_size,
@@ -301,13 +297,8 @@ impl<W: LayoutElement> Workspace<W> {
         let view_size = Size::from((1280., 720.));
         let working_area = Rectangle::from_size(Size::from((1280., 720.)));
 
-        let scrolling = ScrollingSpace::new(
-            view_size,
-            working_area,
-            scale.fractional_scale(),
-            clock.clone(),
-            options.clone(),
-        );
+        let dims = Dims::new(scale, view_size, working_area, options.layout.orientation);
+        let scrolling = ScrollingSpace::new(dims, clock.clone(), options.clone());
 
         let floating = FloatingSpace::new(
             view_size,
@@ -416,12 +407,13 @@ impl<W: LayoutElement> Workspace<W> {
                 .adjusted_for_scale(scale),
         );
 
-        self.scrolling.update_config(
+        let dims = Dims::new(
+            self.scale,
             self.view_size,
             self.working_area,
-            self.scale.fractional_scale(),
-            options.clone(),
+            options.layout.orientation,
         );
+        self.scrolling.update_config(dims, options.clone());
 
         self.floating.update_config(
             self.view_size,
@@ -573,12 +565,8 @@ impl<W: LayoutElement> Workspace<W> {
             self.update_config(self.base_options.clone());
         } else {
             // Pass our existing options as is.
-            self.scrolling.update_config(
-                size,
-                working_area,
-                scale.fractional_scale(),
-                self.options.clone(),
-            );
+            let dims = Dims::new(scale, size, working_area, self.options.layout.orientation);
+            self.scrolling.update_config(dims, self.options.clone());
             self.floating.update_config(
                 size,
                 working_area,
