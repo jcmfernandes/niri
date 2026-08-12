@@ -1804,6 +1804,81 @@ fn vertical_orientation_overview_places_workspaces_horizontally() {
 }
 
 #[test]
+fn overview_arrangement_does_not_depend_on_active_workspace() {
+    // Workspaces on one monitor can have disagreeing orientations, but they are all arranged
+    // relative to each other along a single direction. That direction belongs to the monitor, so
+    // focusing a differently-oriented workspace must not rearrange the overview.
+    let vertical = niri_config::LayoutPart {
+        orientation: Some(Orientation::Vertical),
+        ..Default::default()
+    };
+
+    let mut layout = Layout::default();
+    check_ops_on_layout(
+        &mut layout,
+        [
+            Op::AddOutput(1),
+            Op::AddNamedWorkspace {
+                ws_name: 1,
+                output_name: Some(1),
+                layout_config: None,
+            },
+            Op::AddNamedWorkspace {
+                ws_name: 2,
+                output_name: Some(1),
+                layout_config: Some(Box::new(vertical)),
+            },
+            Op::ToggleOverview,
+            Op::CompleteAnimations,
+        ],
+    );
+
+    // The offsets between consecutive workspaces: the arrangement with the scroll position of
+    // whichever workspace is active divided out.
+    let arrangement = |layout: &Layout<TestWindow>| {
+        let MonitorSet::Normal { monitors, .. } = &layout.monitor_set else {
+            unreachable!()
+        };
+        let geo: Vec<_> = monitors[0].workspaces_render_geo().collect();
+        geo.windows(2)
+            .map(|pair| pair[1].loc - pair[0].loc)
+            .collect::<Vec<_>>()
+    };
+
+    let idx_with_orientation = |layout: &Layout<TestWindow>, orientation| {
+        let MonitorSet::Normal { monitors, .. } = &layout.monitor_set else {
+            unreachable!()
+        };
+        monitors[0]
+            .workspaces
+            .iter()
+            .position(|ws| ws.orientation() == orientation)
+            .unwrap()
+    };
+
+    let vertical_idx = idx_with_orientation(&layout, Orientation::Vertical);
+    let horizontal_idx = idx_with_orientation(&layout, Orientation::Horizontal);
+
+    check_ops_on_layout(
+        &mut layout,
+        [Op::FocusWorkspace(vertical_idx), Op::CompleteAnimations],
+    );
+    let with_vertical_active = arrangement(&layout);
+
+    check_ops_on_layout(
+        &mut layout,
+        [Op::FocusWorkspace(horizontal_idx), Op::CompleteAnimations],
+    );
+    let with_horizontal_active = arrangement(&layout);
+
+    assert_eq!(with_vertical_active.len(), 3);
+    assert_eq!(
+        with_vertical_active, with_horizontal_active,
+        "the overview arrangement changed when a differently-oriented workspace was focused"
+    );
+}
+
+#[test]
 fn vertical_orientation_set_column_width_changes_tile_height() {
     let mut options = Options::default();
     options.layout.orientation = Orientation::Vertical;
