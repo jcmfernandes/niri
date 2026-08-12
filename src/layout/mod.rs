@@ -615,7 +615,7 @@ impl<W: LayoutElement> InteractiveMoveData<W> {
         let mut window_size = self.tile.window_size();
         let mut window_loc = self.tile.window_loc();
         if !self.is_floating {
-            let axis = AxisMap::new(self.tile.options.layout.main_axis);
+            let axis = AxisMap::new(self.tile.options.layout.orientation);
             window_size = axis.size_out(window_size);
             window_loc = axis.point_out(window_loc);
         }

@@ -1,10 +1,10 @@
-use niri_config::{MainAxis, Modifiers};
+use niri_config::{Modifiers, Orientation};
 
 use crate::layout::axis::PhysicalAxis;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct InputAxisPolicy {
-    main_axis: MainAxis,
+    orientation: Orientation,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -14,16 +14,16 @@ pub enum OverviewWheelTarget {
 }
 
 impl InputAxisPolicy {
-    pub const fn from_main_axis(main_axis: MainAxis) -> Self {
-        Self { main_axis }
+    pub const fn from_orientation(orientation: Orientation) -> Self {
+        Self { orientation }
     }
 
-    pub const fn main_axis(self) -> MainAxis {
-        self.main_axis
+    pub const fn orientation(self) -> Orientation {
+        self.orientation
     }
 
     pub const fn is_vertical(self) -> bool {
-        matches!(self.main_axis, MainAxis::Vertical)
+        matches!(self.orientation, Orientation::Vertical)
     }
 
     pub fn gesture_prefers_view_offset(self, cumulative_x: f64, cumulative_y: f64) -> bool {
@@ -103,9 +103,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn gesture_prefers_view_offset_respects_main_axis() {
-        let horizontal = InputAxisPolicy::from_main_axis(MainAxis::Horizontal);
-        let vertical = InputAxisPolicy::from_main_axis(MainAxis::Vertical);
+    fn gesture_prefers_view_offset_respects_orientation() {
+        let horizontal = InputAxisPolicy::from_orientation(Orientation::Horizontal);
+        let vertical = InputAxisPolicy::from_orientation(Orientation::Vertical);
 
         assert!(horizontal.gesture_prefers_view_offset(20., 1.));
         assert!(!horizontal.gesture_prefers_view_offset(1., 20.));
@@ -116,18 +116,18 @@ mod tests {
     }
 
     #[test]
-    fn split_view_workspace_deltas_respects_main_axis() {
-        let horizontal = InputAxisPolicy::from_main_axis(MainAxis::Horizontal);
-        let vertical = InputAxisPolicy::from_main_axis(MainAxis::Vertical);
+    fn split_view_workspace_deltas_respects_orientation() {
+        let horizontal = InputAxisPolicy::from_orientation(Orientation::Horizontal);
+        let vertical = InputAxisPolicy::from_orientation(Orientation::Vertical);
 
         assert_eq!(horizontal.split_view_workspace_deltas(3., -7.), (3., -7.));
         assert_eq!(vertical.split_view_workspace_deltas(3., -7.), (-7., 3.));
     }
 
     #[test]
-    fn screenshot_axes_respect_main_axis() {
-        let horizontal = InputAxisPolicy::from_main_axis(MainAxis::Horizontal);
-        let vertical = InputAxisPolicy::from_main_axis(MainAxis::Vertical);
+    fn screenshot_axes_respect_orientation() {
+        let horizontal = InputAxisPolicy::from_orientation(Orientation::Horizontal);
+        let vertical = InputAxisPolicy::from_orientation(Orientation::Vertical);
 
         assert_eq!(horizontal.screenshot_main_axis(), PhysicalAxis::Width);
         assert_eq!(horizontal.screenshot_cross_axis(), PhysicalAxis::Height);
@@ -136,9 +136,9 @@ mod tests {
     }
 
     #[test]
-    fn overview_wheel_target_respects_main_axis_and_shift() {
-        let horizontal = InputAxisPolicy::from_main_axis(MainAxis::Horizontal);
-        let vertical = InputAxisPolicy::from_main_axis(MainAxis::Vertical);
+    fn overview_wheel_target_respects_orientation_and_shift() {
+        let horizontal = InputAxisPolicy::from_orientation(Orientation::Horizontal);
+        let vertical = InputAxisPolicy::from_orientation(Orientation::Vertical);
 
         assert_eq!(
             horizontal.overview_wheel_target(true, Modifiers::empty()),

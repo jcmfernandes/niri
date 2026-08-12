@@ -7,7 +7,7 @@ Here are the contents of this section at a glance:
 ```kdl
 layout {
     gaps 16
-    main-axis "horizontal"
+    orientation "horizontal"
     center-focused-column "never"
     always-center-single-column
     empty-workspace-above-first
@@ -116,7 +116,7 @@ layout {
 }
 ```
 
-### `main-axis`
+### `orientation`
 
 <sup>Since: next release</sup>
 
@@ -134,7 +134,7 @@ So in the default horizontal layout these still correspond to physical width and
 
 ```kdl
 layout {
-    main-axis "vertical"
+    orientation "vertical"
 }
 ```
 
@@ -247,7 +247,7 @@ layout {
 > [!NOTE]
 > `default-column-width {}` causes niri to send an initial configure request with the main-axis span left at 0 and the cross-axis span set normally.
 >
-> In the default horizontal layout this is `(0, H)`. With `main-axis "vertical"`, this becomes `(W, 0)`.
+> In the default horizontal layout this is `(0, H)`. With `orientation "vertical"`, this becomes `(W, 0)`.
 >
 > This is a bit [unclearly defined](https://gitlab.freedesktop.org/wayland/wayland-protocols/-/issues/155) in the Wayland protocol, so some clients may misinterpret it.
 > Either way, `default-column-width {}` is most useful for specific windows, in form of a [window rule](./Configuration:-Window-Rules.md#default-column-width) with the same syntax.
