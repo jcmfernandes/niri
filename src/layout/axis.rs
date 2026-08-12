@@ -1,4 +1,4 @@
-use niri_config::MainAxis;
+use niri_config::Orientation;
 use smithay::utils::{Coordinate, Logical, Point, Rectangle, Size};
 
 use crate::utils::ResizeEdge;
@@ -24,20 +24,20 @@ pub enum PhysicalAxis {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct AxisMap {
-    main_axis: MainAxis,
+    main_axis: Orientation,
 }
 
 impl AxisMap {
-    pub const fn new(main_axis: MainAxis) -> Self {
+    pub const fn new(main_axis: Orientation) -> Self {
         Self { main_axis }
     }
 
-    pub const fn main_axis(self) -> MainAxis {
+    pub const fn main_axis(self) -> Orientation {
         self.main_axis
     }
 
     pub const fn is_vertical(self) -> bool {
-        matches!(self.main_axis, MainAxis::Vertical)
+        matches!(self.main_axis, Orientation::Vertical)
     }
 
     pub fn point_in<N: Coordinate>(self, point: Point<N, Logical>) -> Point<N, Logical> {
@@ -180,8 +180,8 @@ mod tests {
 
     #[test]
     fn main_cross_accessors_respect_axis() {
-        let horizontal = AxisMap::new(MainAxis::Horizontal);
-        let vertical = AxisMap::new(MainAxis::Vertical);
+        let horizontal = AxisMap::new(Orientation::Horizontal);
+        let vertical = AxisMap::new(Orientation::Vertical);
 
         let point = Point::<f64, Logical>::from((3., 7.));
         let size = Size::<f64, Logical>::from((11., 13.));
@@ -199,8 +199,8 @@ mod tests {
 
     #[test]
     fn main_cross_constructors_respect_axis() {
-        let horizontal = AxisMap::new(MainAxis::Horizontal);
-        let vertical = AxisMap::new(MainAxis::Vertical);
+        let horizontal = AxisMap::new(Orientation::Horizontal);
+        let vertical = AxisMap::new(Orientation::Vertical);
 
         assert_eq!(
             horizontal.point_from_main_cross(3., 7.),
@@ -223,8 +223,8 @@ mod tests {
 
     #[test]
     fn map_main_and_cross_select_expected_branch() {
-        let horizontal = AxisMap::new(MainAxis::Horizontal);
-        let vertical = AxisMap::new(MainAxis::Vertical);
+        let horizontal = AxisMap::new(Orientation::Horizontal);
+        let vertical = AxisMap::new(Orientation::Vertical);
 
         let mut value = 0;
         horizontal.map_main(&mut value, |v| *v = 1, |v| *v = 2);

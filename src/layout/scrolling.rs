@@ -338,7 +338,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         clock: Clock,
         options: Rc<Options>,
     ) -> Self {
-        let axis = AxisMap::new(options.layout.main_axis);
+        let axis = AxisMap::new(options.layout.orientation);
         let view_size = axis.size_in(view_size);
         let parent_area = axis.rect_in(parent_area);
         let working_area = compute_working_area(parent_area, scale, options.layout.struts);
@@ -368,7 +368,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         scale: f64,
         options: Rc<Options>,
     ) {
-        let axis = AxisMap::new(options.layout.main_axis);
+        let axis = AxisMap::new(options.layout.orientation);
         let view_size = axis.size_in(view_size);
         let parent_area = axis.rect_in(parent_area);
         let working_area = compute_working_area(parent_area, scale, options.layout.struts);
@@ -391,7 +391,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
     }
 
     fn axis(&self) -> AxisMap {
-        AxisMap::new(self.options.layout.main_axis)
+        AxisMap::new(self.options.layout.orientation)
     }
 
     fn map_point_in(&self, point: Point<f64, Logical>) -> Point<f64, Logical> {
@@ -4209,7 +4209,7 @@ impl<W: LayoutElement> Column<W> {
         scale: f64,
         options: Rc<Options>,
     ) {
-        let axis = AxisMap::new(options.layout.main_axis);
+        let axis = AxisMap::new(options.layout.orientation);
         let tile_view_size = axis.size_out(view_size);
 
         let mut update_sizes = false;
@@ -4232,7 +4232,7 @@ impl<W: LayoutElement> Column<W> {
             update_sizes = true;
         }
 
-        if self.options.layout.main_axis != options.layout.main_axis {
+        if self.options.layout.orientation != options.layout.orientation {
             update_sizes = true;
         }
 
@@ -4394,7 +4394,7 @@ impl<W: LayoutElement> Column<W> {
     }
 
     fn axis(&self) -> AxisMap {
-        AxisMap::new(self.options.layout.main_axis)
+        AxisMap::new(self.options.layout.orientation)
     }
 
     fn map_size_in(&self, size: Size<f64, Logical>) -> Size<f64, Logical> {

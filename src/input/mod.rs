@@ -266,8 +266,8 @@ impl State {
 
     pub fn axis_policy_on_output(&self, output: &Output) -> Option<InputAxisPolicy> {
         let mon = self.niri.layout.monitor_for_output(output)?;
-        Some(InputAxisPolicy::from_main_axis(
-            mon.active_workspace_ref().main_axis(),
+        Some(InputAxisPolicy::from_orientation(
+            mon.active_workspace_ref().orientation(),
         ))
     }
 
@@ -278,7 +278,7 @@ impl State {
         self.niri
             .layout
             .find_workspace_by_id(workspace_id)
-            .map(|(_, ws)| InputAxisPolicy::from_main_axis(ws.main_axis()))
+            .map(|(_, ws)| InputAxisPolicy::from_orientation(ws.orientation()))
     }
 
     pub fn window_axis_policy(&self, window: &Window) -> Option<(bool, InputAxisPolicy)> {
@@ -286,7 +286,7 @@ impl State {
             ws.windows().any(|w| w.window == *window).then(|| {
                 (
                     ws.is_floating(window),
-                    InputAxisPolicy::from_main_axis(ws.main_axis()),
+                    InputAxisPolicy::from_orientation(ws.orientation()),
                 )
             })
         })
@@ -295,7 +295,7 @@ impl State {
     fn view_axis_policy_under_cursor_or_active_workspace(&self) -> Option<InputAxisPolicy> {
         self.niri
             .workspace_under_cursor(true)
-            .map(|(_, ws)| InputAxisPolicy::from_main_axis(ws.main_axis()))
+            .map(|(_, ws)| InputAxisPolicy::from_orientation(ws.orientation()))
             .or_else(|| {
                 let output = self.niri.output_under_cursor()?;
                 self.axis_policy_on_output(&output)
@@ -2963,7 +2963,7 @@ impl State {
                 if let Some((output, ws)) = self.niri.workspace_under_cursor(true) {
                     let ws_id = ws.id();
                     let ws_idx = self.niri.layout.find_workspace_by_id(ws_id).unwrap().0;
-                    let axis_policy = InputAxisPolicy::from_main_axis(ws.main_axis());
+                    let axis_policy = InputAxisPolicy::from_orientation(ws.orientation());
 
                     self.niri.layout.focus_output(&output);
 
@@ -3003,7 +3003,7 @@ impl State {
 
                 if let Some((output, ws)) = output_ws {
                     let ws_id = ws.id();
-                    let axis_policy = InputAxisPolicy::from_main_axis(ws.main_axis());
+                    let axis_policy = InputAxisPolicy::from_orientation(ws.orientation());
 
                     self.niri.layout.focus_output(&output);
 

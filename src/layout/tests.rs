@@ -3,7 +3,7 @@ use std::cell::{Cell, OnceCell, RefCell};
 use niri_config::utils::{Flag, MergeWith as _};
 use niri_config::workspace::WorkspaceName;
 use niri_config::{
-    CenterFocusedColumn, FloatOrInt, MainAxis, OutputName, Struts, TabIndicatorLength,
+    CenterFocusedColumn, FloatOrInt, Orientation, OutputName, Struts, TabIndicatorLength,
     TabIndicatorPosition, WorkspaceReference,
 };
 use proptest::prelude::*;
@@ -1655,9 +1655,9 @@ fn check_ops_with_options(
 }
 
 #[test]
-fn vertical_main_axis_places_columns_vertically() {
+fn vertical_orientation_places_columns_vertically() {
     let mut options = Options::default();
-    options.layout.main_axis = MainAxis::Vertical;
+    options.layout.orientation = Orientation::Vertical;
 
     let layout = check_ops_with_options(
         options,
@@ -1689,9 +1689,9 @@ fn vertical_main_axis_places_columns_vertically() {
 }
 
 #[test]
-fn vertical_main_axis_insert_position_follows_y() {
+fn vertical_orientation_insert_position_follows_y() {
     let mut options = Options::default();
-    options.layout.main_axis = MainAxis::Vertical;
+    options.layout.orientation = Orientation::Vertical;
 
     let layout = check_ops_with_options(
         options,
@@ -1734,9 +1734,9 @@ fn vertical_main_axis_insert_position_follows_y() {
 }
 
 #[test]
-fn vertical_main_axis_dnd_edge_scroll_uses_vertical_edges() {
+fn vertical_orientation_dnd_edge_scroll_uses_vertical_edges() {
     let mut options = Options::default();
-    options.layout.main_axis = MainAxis::Vertical;
+    options.layout.orientation = Orientation::Vertical;
 
     let mut layout = check_ops_with_options(
         options,
@@ -1766,9 +1766,9 @@ fn vertical_main_axis_dnd_edge_scroll_uses_vertical_edges() {
 }
 
 #[test]
-fn vertical_main_axis_overview_places_workspaces_horizontally() {
+fn vertical_orientation_overview_places_workspaces_horizontally() {
     let mut options = Options::default();
-    options.layout.main_axis = MainAxis::Vertical;
+    options.layout.orientation = Orientation::Vertical;
 
     let layout = check_ops_with_options(
         options,
@@ -1804,9 +1804,9 @@ fn vertical_main_axis_overview_places_workspaces_horizontally() {
 }
 
 #[test]
-fn vertical_main_axis_set_column_width_changes_tile_height() {
+fn vertical_orientation_set_column_width_changes_tile_height() {
     let mut options = Options::default();
-    options.layout.main_axis = MainAxis::Vertical;
+    options.layout.orientation = Orientation::Vertical;
 
     let mut layout = check_ops_with_options(
         options,
@@ -1837,9 +1837,9 @@ fn vertical_main_axis_set_column_width_changes_tile_height() {
 }
 
 #[test]
-fn vertical_main_axis_interactive_resize_bottom_changes_tile_height() {
+fn vertical_orientation_interactive_resize_bottom_changes_tile_height() {
     let mut options = Options::default();
-    options.layout.main_axis = MainAxis::Vertical;
+    options.layout.orientation = Orientation::Vertical;
 
     let mut layout = check_ops_with_options(
         options,
@@ -1881,9 +1881,9 @@ fn vertical_main_axis_interactive_resize_bottom_changes_tile_height() {
 }
 
 #[test]
-fn vertical_main_axis_interactive_move_tracks_pointer_along_y() {
+fn vertical_orientation_interactive_move_tracks_pointer_along_y() {
     let mut options = Options::default();
-    options.layout.main_axis = MainAxis::Vertical;
+    options.layout.orientation = Orientation::Vertical;
 
     let mut layout = check_ops_with_options(
         options,
@@ -1935,9 +1935,9 @@ fn vertical_main_axis_interactive_move_tracks_pointer_along_y() {
 }
 
 #[test]
-fn vertical_main_axis_floating_move_column_right_moves_window_down() {
+fn vertical_orientation_floating_move_column_right_moves_window_down() {
     let mut options = Options::default();
-    options.layout.main_axis = MainAxis::Vertical;
+    options.layout.orientation = Orientation::Vertical;
 
     let mut layout = check_ops_with_options(
         options,
@@ -1977,9 +1977,9 @@ fn vertical_main_axis_floating_move_column_right_moves_window_down() {
 }
 
 #[test]
-fn vertical_main_axis_floating_move_window_down_moves_window_right() {
+fn vertical_orientation_floating_move_window_down_moves_window_right() {
     let mut options = Options::default();
-    options.layout.main_axis = MainAxis::Vertical;
+    options.layout.orientation = Orientation::Vertical;
 
     let mut layout = check_ops_with_options(
         options,
@@ -2019,9 +2019,9 @@ fn vertical_main_axis_floating_move_window_down_moves_window_right() {
 }
 
 #[test]
-fn vertical_main_axis_floating_set_column_width_changes_window_height() {
+fn vertical_orientation_floating_set_column_width_changes_window_height() {
     let mut options = Options::default();
-    options.layout.main_axis = MainAxis::Vertical;
+    options.layout.orientation = Orientation::Vertical;
 
     let mut layout = check_ops_with_options(
         options,
@@ -2053,9 +2053,9 @@ fn vertical_main_axis_floating_set_column_width_changes_window_height() {
 }
 
 #[test]
-fn vertical_main_axis_floating_set_window_height_changes_window_width() {
+fn vertical_orientation_floating_set_window_height_changes_window_width() {
     let mut options = Options::default();
-    options.layout.main_axis = MainAxis::Vertical;
+    options.layout.orientation = Orientation::Vertical;
 
     let mut layout = check_ops_with_options(
         options,

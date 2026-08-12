@@ -43,26 +43,26 @@ This works with both window-initiated resizes (when using client-side decoration
 <sup>Since: 0.1.6</sup>
 
 Move the view by holding <kbd>Mod</kbd> and the middle mouse button (or the wheel) and dragging along the tiling main axis.
-By default this is horizontal; with [`layout.main-axis "vertical"`](./Configuration:-Layout.md#main-axis), this becomes vertical.
+By default this is horizontal; with [`layout.orientation "vertical"`](./Configuration:-Layout.md#orientation), this becomes vertical.
 
 #### Workspace Switch
 
 <sup>Since: 0.1.7</sup>
 
 Switch workspaces by holding <kbd>Mod</kbd> and the middle mouse button (or the wheel) and dragging perpendicular to the tiling main axis.
-By default this is vertical; with [`layout.main-axis "vertical"`](./Configuration:-Layout.md#main-axis), this becomes horizontal.
+By default this is vertical; with [`layout.orientation "vertical"`](./Configuration:-Layout.md#orientation), this becomes horizontal.
 
 ### Touchpad
 
 #### Workspace Switch
 
 Switch workspaces with three-finger swipes perpendicular to the tiling main axis.
-By default this is a vertical swipe; with [`layout.main-axis "vertical"`](./Configuration:-Layout.md#main-axis), this is horizontal.
+By default this is a vertical swipe; with [`layout.orientation "vertical"`](./Configuration:-Layout.md#orientation), this is horizontal.
 
 #### View Movement
 
 Move the view with three-finger swipes along the tiling main axis.
-By default this is horizontal; with [`layout.main-axis "vertical"`](./Configuration:-Layout.md#main-axis), this is vertical.
+By default this is horizontal; with [`layout.orientation "vertical"`](./Configuration:-Layout.md#orientation), this is vertical.
 
 #### Open and Close the Overview
 

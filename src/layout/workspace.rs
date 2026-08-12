@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use niri_config::utils::MergeWith as _;
 use niri_config::{
-    CenterFocusedColumn, CornerRadius, MainAxis, OutputName, PresetSize,
+    CenterFocusedColumn, CornerRadius, Orientation, OutputName, PresetSize,
     Workspace as WorkspaceConfig,
 };
 use niri_ipc::{ColumnDisplay, PositionChange, SizeChange, WindowLayout};
@@ -349,12 +349,12 @@ impl<W: LayoutElement> Workspace<W> {
         self.id
     }
 
-    pub fn main_axis(&self) -> MainAxis {
-        self.options.layout.main_axis
+    pub fn orientation(&self) -> Orientation {
+        self.options.layout.orientation
     }
 
     pub(in crate::layout) fn axis(&self) -> AxisMap {
-        AxisMap::new(self.main_axis())
+        AxisMap::new(self.orientation())
     }
 
     pub fn name(&self) -> Option<&String> {
@@ -2047,7 +2047,7 @@ impl<W: LayoutElement> Workspace<W> {
             options.layout.background_color.to_array_unpremul(),
         );
 
-        let axis = AxisMap::new(options.layout.main_axis);
+        let axis = AxisMap::new(options.layout.orientation);
         let scrolling_view_size = axis.size_in(self.view_size);
         let scrolling_parent_area = axis.rect_in(self.working_area);
 

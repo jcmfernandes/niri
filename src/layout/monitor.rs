@@ -3,7 +3,7 @@ use std::iter::zip;
 use std::rc::Rc;
 use std::time::Duration;
 
-use niri_config::{CornerRadius, LayoutPart, MainAxis};
+use niri_config::{CornerRadius, LayoutPart, Orientation};
 use smithay::backend::renderer::element::utils::{
     CropRenderElement, Relocate, RelocateRenderElement, RescaleRenderElement,
 };
@@ -1784,11 +1784,11 @@ impl<W: LayoutElement> Monitor<W> {
                     // AxisMap operates in Logical space, but crop_bounds is Physical, so the
                     // layout below is open-coded along main_axis().
                     match self.overview_axis().main_axis() {
-                        MainAxis::Horizontal => Rectangle::new(
+                        Orientation::Horizontal => Rectangle::new(
                             Point::from((-i32::MAX / 2, 0)),
                             Size::from((i32::MAX, height)),
                         ),
-                        MainAxis::Vertical => Rectangle::new(
+                        Orientation::Vertical => Rectangle::new(
                             Point::from((0, -i32::MAX / 2)),
                             Size::from((width, i32::MAX)),
                         ),
