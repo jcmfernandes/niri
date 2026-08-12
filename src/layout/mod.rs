@@ -78,6 +78,7 @@ use crate::window::ResolvedWindowRules;
 
 pub mod axis;
 pub mod closing_window;
+pub mod dims;
 pub mod floating;
 pub mod focus_ring;
 pub mod insert_hint_element;
