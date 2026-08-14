@@ -15,6 +15,15 @@ pub enum AxisEdge {
     End,
 }
 
+/// A physical screen direction, as the user perceives it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Direction {
+    Left,
+    Right,
+    Up,
+    Down,
+}
+
 /// Which physical axis of a 2D rectangle an operation should affect.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PhysicalAxis {
@@ -172,6 +181,31 @@ impl AxisMap {
     pub fn resize_edges_out(self, edges: ResizeEdge) -> ResizeEdge {
         self.resize_edges_in(edges)
     }
+
+    /// Resolves a physical direction along the main axis.
+    ///
+    /// Returns `None` when the direction does not lie on the main axis; directional actions
+    /// treat that as "nothing there" and do nothing.
+    pub fn main_direction(self, dir: Direction) -> Option<AxisDirection> {
+        match (self.main_axis, dir) {
+            (Orientation::Horizontal, Direction::Left) => Some(AxisDirection::Backward),
+            (Orientation::Horizontal, Direction::Right) => Some(AxisDirection::Forward),
+            (Orientation::Vertical, Direction::Up) => Some(AxisDirection::Backward),
+            (Orientation::Vertical, Direction::Down) => Some(AxisDirection::Forward),
+            _ => None,
+        }
+    }
+
+    /// Resolves a physical direction along the cross axis.
+    pub fn cross_direction(self, dir: Direction) -> Option<AxisDirection> {
+        match (self.main_axis, dir) {
+            (Orientation::Horizontal, Direction::Up) => Some(AxisDirection::Backward),
+            (Orientation::Horizontal, Direction::Down) => Some(AxisDirection::Forward),
+            (Orientation::Vertical, Direction::Left) => Some(AxisDirection::Backward),
+            (Orientation::Vertical, Direction::Right) => Some(AxisDirection::Forward),
+            _ => None,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -238,5 +272,34 @@ mod tests {
 
         vertical.map_cross(&mut value, |v| *v = 7, |v| *v = 8);
         assert_eq!(value, 7);
+    }
+
+    #[test]
+    fn direction_resolution() {
+        use AxisDirection::{Backward, Forward};
+        use Direction::{Down, Left, Right, Up};
+
+        let h = AxisMap::new(Orientation::Horizontal);
+        let v = AxisMap::new(Orientation::Vertical);
+
+        // Horizontal: strip runs left-to-right, windows stack top-to-bottom.
+        assert_eq!(h.main_direction(Left), Some(Backward));
+        assert_eq!(h.main_direction(Right), Some(Forward));
+        assert_eq!(h.main_direction(Up), None);
+        assert_eq!(h.main_direction(Down), None);
+        assert_eq!(h.cross_direction(Up), Some(Backward));
+        assert_eq!(h.cross_direction(Down), Some(Forward));
+        assert_eq!(h.cross_direction(Left), None);
+        assert_eq!(h.cross_direction(Right), None);
+
+        // Vertical: strip runs top-to-bottom, windows sit left-to-right.
+        assert_eq!(v.main_direction(Up), Some(Backward));
+        assert_eq!(v.main_direction(Down), Some(Forward));
+        assert_eq!(v.main_direction(Left), None);
+        assert_eq!(v.main_direction(Right), None);
+        assert_eq!(v.cross_direction(Left), Some(Backward));
+        assert_eq!(v.cross_direction(Right), Some(Forward));
+        assert_eq!(v.cross_direction(Up), None);
+        assert_eq!(v.cross_direction(Down), None);
     }
 }
