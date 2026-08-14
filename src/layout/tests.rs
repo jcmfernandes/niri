@@ -1766,6 +1766,239 @@ fn vertical_orientation_dnd_edge_scroll_uses_vertical_edges() {
 }
 
 #[test]
+fn spatial_group_focus_on_vertical() {
+    let mut options = Options::default();
+    options.layout.orientation = Orientation::Vertical;
+
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(1),
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(2),
+            },
+        ],
+    );
+
+    let ws = layout.active_workspace_mut().unwrap();
+    assert_eq!(ws.scrolling().active_column_idx(), 1);
+
+    assert!(ws.focus_group_in_direction(axis::Direction::Up));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        0,
+        "Up must activate group 0"
+    );
+
+    assert!(!ws.focus_group_in_direction(axis::Direction::Up));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        0,
+        "Up at the edge must not move focus"
+    );
+
+    assert!(!ws.focus_group_in_direction(axis::Direction::Left));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        0,
+        "Left is off-axis and must not move focus"
+    );
+
+    assert!(!ws.focus_group_in_direction(axis::Direction::Right));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        0,
+        "Right is off-axis and must not move focus"
+    );
+
+    assert!(ws.focus_group_in_direction(axis::Direction::Down));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        1,
+        "Down must activate group 1"
+    );
+}
+
+#[test]
+fn spatial_group_focus_on_horizontal() {
+    let mut options = Options::default();
+    options.layout.orientation = Orientation::Horizontal;
+
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(1),
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(2),
+            },
+        ],
+    );
+
+    let ws = layout.active_workspace_mut().unwrap();
+    assert_eq!(ws.scrolling().active_column_idx(), 1);
+
+    assert!(ws.focus_group_in_direction(axis::Direction::Left));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        0,
+        "Left must activate group 0"
+    );
+
+    assert!(!ws.focus_group_in_direction(axis::Direction::Left));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        0,
+        "Left at the edge must not move focus"
+    );
+
+    assert!(!ws.focus_group_in_direction(axis::Direction::Up));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        0,
+        "Up is off-axis and must not move focus"
+    );
+
+    assert!(!ws.focus_group_in_direction(axis::Direction::Down));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        0,
+        "Down is off-axis and must not move focus"
+    );
+
+    assert!(ws.focus_group_in_direction(axis::Direction::Right));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        1,
+        "Right must activate group 1"
+    );
+}
+
+#[test]
+fn spatial_window_focus() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(1),
+        },
+        Op::AddWindow {
+            params: TestWindowParams::new(2),
+        },
+        Op::FocusGroupLeft,
+        Op::ConsumeWindowIntoGroup,
+    ];
+
+    // Vertical: window focus (within a group) moves along the cross axis, which for a vertical
+    // workspace is physically Left/Right; Up/Down are off-axis and always return false.
+    let mut vertical_options = Options::default();
+    vertical_options.layout.orientation = Orientation::Vertical;
+
+    let mut layout = check_ops_with_options(vertical_options, ops.clone());
+    let ws = layout.active_workspace_mut().unwrap();
+    assert_eq!(ws.scrolling().active_column_idx(), 0);
+
+    assert!(!ws.focus_window_in_direction(axis::Direction::Up));
+    assert!(!ws.focus_window_in_direction(axis::Direction::Down));
+    assert!(ws.focus_window_in_direction(axis::Direction::Right));
+    assert!(!ws.focus_window_in_direction(axis::Direction::Up));
+    assert!(!ws.focus_window_in_direction(axis::Direction::Down));
+    assert!(ws.focus_window_in_direction(axis::Direction::Left));
+
+    // Horizontal: mirror image, Up/Down live and Left/Right off-axis.
+    let mut horizontal_options = Options::default();
+    horizontal_options.layout.orientation = Orientation::Horizontal;
+
+    let mut layout = check_ops_with_options(horizontal_options, ops);
+    let ws = layout.active_workspace_mut().unwrap();
+    assert_eq!(ws.scrolling().active_column_idx(), 0);
+
+    assert!(!ws.focus_window_in_direction(axis::Direction::Left));
+    assert!(!ws.focus_window_in_direction(axis::Direction::Right));
+    assert!(ws.focus_window_in_direction(axis::Direction::Down));
+    assert!(!ws.focus_window_in_direction(axis::Direction::Left));
+    assert!(!ws.focus_window_in_direction(axis::Direction::Right));
+    assert!(ws.focus_window_in_direction(axis::Direction::Up));
+}
+
+#[test]
+fn spatial_workspace_switch() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(1),
+        },
+        Op::FocusWorkspaceDown,
+        Op::AddWindow {
+            params: TestWindowParams::new(2),
+        },
+        Op::FocusWorkspaceUp,
+    ];
+
+    // Horizontal monitor: workspaces stack along the cross axis, which is physically Up/Down;
+    // Left/Right are off-axis and leave the active workspace unchanged.
+    let mut horizontal_options = Options::default();
+    horizontal_options.layout.orientation = Orientation::Horizontal;
+
+    let mut layout = check_ops_with_options(horizontal_options, ops.clone());
+    let mon = layout.monitors_mut().next().unwrap();
+    assert_eq!(mon.active_workspace_idx(), 0);
+
+    mon.switch_workspace_in_direction(axis::Direction::Down);
+    assert_eq!(mon.active_workspace_idx(), 1, "Down must activate ws 1");
+
+    mon.switch_workspace_in_direction(axis::Direction::Up);
+    assert_eq!(mon.active_workspace_idx(), 0, "Up must activate ws 0");
+
+    mon.switch_workspace_in_direction(axis::Direction::Left);
+    assert_eq!(
+        mon.active_workspace_idx(),
+        0,
+        "Left is off-axis and must not switch workspace"
+    );
+
+    mon.switch_workspace_in_direction(axis::Direction::Right);
+    assert_eq!(
+        mon.active_workspace_idx(),
+        0,
+        "Right is off-axis and must not switch workspace"
+    );
+
+    // Vertical monitor: workspaces stack along the cross axis, which is physically Left/Right;
+    // Up/Down are off-axis and leave the active workspace unchanged.
+    let mut vertical_options = Options::default();
+    vertical_options.layout.orientation = Orientation::Vertical;
+
+    let mut layout = check_ops_with_options(vertical_options, ops);
+    let mon = layout.monitors_mut().next().unwrap();
+    assert_eq!(mon.active_workspace_idx(), 0);
+
+    mon.switch_workspace_in_direction(axis::Direction::Right);
+    assert_eq!(mon.active_workspace_idx(), 1, "Right must activate ws 1");
+
+    mon.switch_workspace_in_direction(axis::Direction::Left);
+    assert_eq!(mon.active_workspace_idx(), 0, "Left must activate ws 0");
+
+    mon.switch_workspace_in_direction(axis::Direction::Up);
+    assert_eq!(
+        mon.active_workspace_idx(),
+        0,
+        "Up is off-axis and must not switch workspace"
+    );
+
+    mon.switch_workspace_in_direction(axis::Direction::Down);
+    assert_eq!(
+        mon.active_workspace_idx(),
+        0,
+        "Down is off-axis and must not switch workspace"
+    );
+}
+
+#[test]
 fn vertical_orientation_overview_places_workspaces_horizontally() {
     let mut options = Options::default();
     options.layout.orientation = Orientation::Vertical;

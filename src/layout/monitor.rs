@@ -10,7 +10,7 @@ use smithay::backend::renderer::element::utils::{
 use smithay::output::Output;
 use smithay::utils::{Logical, Point, Rectangle, Size};
 
-use super::axis::AxisMap;
+use super::axis::{AxisDirection, AxisMap, Direction};
 use super::insert_hint_element::{InsertHintElement, InsertHintRenderElement};
 use super::scrolling::{Column, ColumnWidth};
 use super::tile::Tile;
@@ -1028,6 +1028,57 @@ impl<W: LayoutElement> Monitor<W> {
         };
 
         self.activate_workspace(new_idx);
+    }
+
+    /// Resolves a physical direction against the axis workspaces are stacked along.
+    ///
+    /// Workspaces stack along the monitor's cross axis; see [`Self::overview_axis`].
+    fn workspace_stack_direction(&self, dir: Direction) -> Option<AxisDirection> {
+        self.overview_axis().cross_direction(dir)
+    }
+
+    pub fn switch_workspace_in_direction(&mut self, dir: Direction) {
+        match self.workspace_stack_direction(dir) {
+            Some(AxisDirection::Backward) => self.switch_workspace_up(),
+            Some(AxisDirection::Forward) => self.switch_workspace_down(),
+            None => (),
+        }
+    }
+
+    pub fn move_workspace_in_direction(&mut self, dir: Direction) {
+        match self.workspace_stack_direction(dir) {
+            Some(AxisDirection::Backward) => self.move_workspace_up(),
+            Some(AxisDirection::Forward) => self.move_workspace_down(),
+            None => (),
+        }
+    }
+
+    pub fn move_to_workspace_in_direction(&mut self, dir: Direction, activate: ActivateWindow) {
+        match self.workspace_stack_direction(dir) {
+            Some(AxisDirection::Backward) => self.move_to_workspace_up(activate),
+            Some(AxisDirection::Forward) => self.move_to_workspace_down(activate),
+            None => (),
+        }
+    }
+
+    pub fn move_column_to_workspace_in_direction(&mut self, dir: Direction, activate: bool) {
+        match self.workspace_stack_direction(dir) {
+            Some(AxisDirection::Backward) => self.move_column_to_workspace_up(activate),
+            Some(AxisDirection::Forward) => self.move_column_to_workspace_down(activate),
+            None => (),
+        }
+    }
+
+    pub fn focus_window_or_workspace_in_direction(&mut self, dir: Direction) {
+        if !self.active_workspace().focus_window_in_direction(dir) {
+            self.switch_workspace_in_direction(dir);
+        }
+    }
+
+    pub fn move_window_or_to_workspace_in_direction(&mut self, dir: Direction) {
+        if !self.active_workspace().move_window_in_direction(dir) {
+            self.move_to_workspace_in_direction(dir, ActivateWindow::Smart);
+        }
     }
 
     fn previous_workspace_idx(&self) -> Option<usize> {

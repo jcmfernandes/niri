@@ -18,7 +18,7 @@ use smithay::utils::{Logical, Point, Rectangle, Serial, Size, Transform};
 use smithay::wayland::compositor::with_states;
 use smithay::wayland::shell::xdg::SurfaceCachedState;
 
-use super::axis::{AxisDirection, AxisEdge, AxisMap};
+use super::axis::{AxisDirection, AxisEdge, AxisMap, Direction};
 use super::dims::Dims;
 use super::floating::{FloatingSpace, FloatingSpaceRenderElement};
 use super::scrolling::{
@@ -1071,6 +1071,101 @@ impl<W: LayoutElement> Workspace<W> {
             true
         } else {
             self.scrolling.move_up()
+        }
+    }
+
+    pub fn focus_group_in_direction(&mut self, dir: Direction) -> bool {
+        match self.axis().main_direction(dir) {
+            Some(AxisDirection::Backward) => self.focus_left(),
+            Some(AxisDirection::Forward) => self.focus_right(),
+            None => false,
+        }
+    }
+
+    pub fn move_group_in_direction(&mut self, dir: Direction) -> bool {
+        match self.axis().main_direction(dir) {
+            Some(AxisDirection::Backward) => self.move_left(),
+            Some(AxisDirection::Forward) => self.move_right(),
+            None => false,
+        }
+    }
+
+    pub fn focus_window_in_direction(&mut self, dir: Direction) -> bool {
+        match self.axis().cross_direction(dir) {
+            Some(AxisDirection::Backward) => self.focus_up(),
+            Some(AxisDirection::Forward) => self.focus_down(),
+            None => false,
+        }
+    }
+
+    pub fn move_window_in_direction(&mut self, dir: Direction) -> bool {
+        match self.axis().cross_direction(dir) {
+            Some(AxisDirection::Backward) => self.move_up(),
+            Some(AxisDirection::Forward) => self.move_down(),
+            None => false,
+        }
+    }
+
+    pub fn focus_group_wrap_in_direction(&mut self, dir: Direction) {
+        match self.axis().main_direction(dir) {
+            Some(AxisDirection::Backward) => {
+                if !self.focus_left() {
+                    self.focus_column_last();
+                }
+            }
+            Some(AxisDirection::Forward) => {
+                if !self.focus_right() {
+                    self.focus_column_first();
+                }
+            }
+            None => (),
+        }
+    }
+
+    pub fn focus_window_or_group_in_direction(
+        &mut self,
+        window_dir: Direction,
+        group_dir: Direction,
+    ) {
+        let axis = self.axis();
+        let (Some(window_dir), Some(group_dir)) = (
+            axis.cross_direction(window_dir),
+            axis.main_direction(group_dir),
+        ) else {
+            return;
+        };
+        if self.floating_is_active.get() {
+            match window_dir {
+                AxisDirection::Backward => self.focus_up(),
+                AxisDirection::Forward => self.focus_down(),
+            };
+            return;
+        }
+        match (window_dir, group_dir) {
+            (AxisDirection::Forward, AxisDirection::Backward) => {
+                self.scrolling.focus_down_or_left()
+            }
+            (AxisDirection::Forward, AxisDirection::Forward) => {
+                self.scrolling.focus_down_or_right()
+            }
+            (AxisDirection::Backward, AxisDirection::Backward) => self.scrolling.focus_up_or_left(),
+            (AxisDirection::Backward, AxisDirection::Forward) => self.scrolling.focus_up_or_right(),
+        }
+    }
+
+    pub fn consume_or_expel_window_in_direction(&mut self, dir: Direction, window: Option<&W::Id>) {
+        match self.axis().main_direction(dir) {
+            Some(AxisDirection::Backward) => self.consume_or_expel_window_left(window),
+            Some(AxisDirection::Forward) => self.consume_or_expel_window_right(window),
+            None => (),
+        }
+    }
+
+    pub fn swap_window_in_physical_direction(&mut self, dir: Direction) {
+        match self.axis().main_direction(dir) {
+            Some(AxisDirection::Backward) => self.swap_window_in_direction(ScrollDirection::Left),
+            Some(AxisDirection::Forward) => self.swap_window_in_direction(ScrollDirection::Right),
+            None => (),
         }
     }
 
