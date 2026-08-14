@@ -52,13 +52,12 @@ use smithay::utils::{Logical, Point, Rectangle, Scale, Serial, Size, Transform};
 use tile::{Tile, TileRenderElement};
 use workspace::{WorkspaceAddWindowTarget, WorkspaceId};
 
-use self::axis::AxisMap;
+use self::axis::{AxisMap, Direction};
 pub use self::monitor::MonitorRenderElement;
 use self::monitor::{Monitor, WorkspaceSwitch};
 use self::workspace::{OutputId, Workspace};
 use crate::animation::{Animation, Clock};
 use crate::input::swipe_tracker::SwipeTracker;
-use crate::layout::scrolling::ScrollDirection;
 use crate::niri_render_elements;
 use crate::render_helpers::background_effect::BackgroundEffectElement;
 use crate::render_helpers::offscreen::OffscreenData;
@@ -1821,14 +1820,14 @@ impl<W: LayoutElement> Layout<W> {
         let Some(workspace) = self.active_workspace_mut() else {
             return;
         };
-        workspace.move_left();
+        workspace.move_group_in_direction(Direction::Left);
     }
 
     pub fn move_right(&mut self) {
         let Some(workspace) = self.active_workspace_mut() else {
             return;
         };
-        workspace.move_right();
+        workspace.move_group_in_direction(Direction::Right);
     }
 
     pub fn move_column_to_first(&mut self) {
@@ -1847,7 +1846,7 @@ impl<W: LayoutElement> Layout<W> {
 
     pub fn move_column_left_or_to_output(&mut self, output: &Output) -> bool {
         if let Some(workspace) = self.active_workspace_mut() {
-            if workspace.move_left() {
+            if workspace.move_group_in_direction(Direction::Left) {
                 return false;
             }
         }
@@ -1858,7 +1857,7 @@ impl<W: LayoutElement> Layout<W> {
 
     pub fn move_column_right_or_to_output(&mut self, output: &Output) -> bool {
         if let Some(workspace) = self.active_workspace_mut() {
-            if workspace.move_right() {
+            if workspace.move_group_in_direction(Direction::Right) {
                 return false;
             }
         }
@@ -1878,28 +1877,28 @@ impl<W: LayoutElement> Layout<W> {
         let Some(workspace) = self.active_workspace_mut() else {
             return;
         };
-        workspace.move_down();
+        workspace.move_window_in_direction(Direction::Down);
     }
 
     pub fn move_up(&mut self) {
         let Some(workspace) = self.active_workspace_mut() else {
             return;
         };
-        workspace.move_up();
+        workspace.move_window_in_direction(Direction::Up);
     }
 
     pub fn move_down_or_to_workspace_down(&mut self) {
         let Some(monitor) = self.active_monitor() else {
             return;
         };
-        monitor.move_down_or_to_workspace_down();
+        monitor.move_window_or_to_workspace_in_direction(Direction::Down);
     }
 
     pub fn move_up_or_to_workspace_up(&mut self) {
         let Some(monitor) = self.active_monitor() else {
             return;
         };
-        monitor.move_up_or_to_workspace_up();
+        monitor.move_window_or_to_workspace_in_direction(Direction::Up);
     }
 
     pub fn consume_or_expel_window_left(&mut self, window: Option<&W::Id>) {
@@ -1922,7 +1921,7 @@ impl<W: LayoutElement> Layout<W> {
         let Some(workspace) = workspace else {
             return;
         };
-        workspace.consume_or_expel_window_left(window);
+        workspace.consume_or_expel_window_in_direction(Direction::Left, window);
     }
 
     pub fn consume_or_expel_window_right(&mut self, window: Option<&W::Id>) {
@@ -1945,21 +1944,21 @@ impl<W: LayoutElement> Layout<W> {
         let Some(workspace) = workspace else {
             return;
         };
-        workspace.consume_or_expel_window_right(window);
+        workspace.consume_or_expel_window_in_direction(Direction::Right, window);
     }
 
     pub fn focus_left(&mut self) {
         let Some(workspace) = self.active_workspace_mut() else {
             return;
         };
-        workspace.focus_left();
+        workspace.focus_group_in_direction(Direction::Left);
     }
 
     pub fn focus_right(&mut self) {
         let Some(workspace) = self.active_workspace_mut() else {
             return;
         };
-        workspace.focus_right();
+        workspace.focus_group_in_direction(Direction::Right);
     }
 
     pub fn focus_column_first(&mut self) {
@@ -1980,14 +1979,14 @@ impl<W: LayoutElement> Layout<W> {
         let Some(workspace) = self.active_workspace_mut() else {
             return;
         };
-        workspace.focus_column_right_or_first();
+        workspace.focus_group_wrap_in_direction(Direction::Right);
     }
 
     pub fn focus_column_left_or_last(&mut self) {
         let Some(workspace) = self.active_workspace_mut() else {
             return;
         };
-        workspace.focus_column_left_or_last();
+        workspace.focus_group_wrap_in_direction(Direction::Left);
     }
 
     pub fn focus_column(&mut self, index: usize) {
@@ -1999,7 +1998,7 @@ impl<W: LayoutElement> Layout<W> {
 
     pub fn focus_window_up_or_output(&mut self, output: &Output) -> bool {
         if let Some(workspace) = self.active_workspace_mut() {
-            if workspace.focus_up() {
+            if workspace.focus_window_in_direction(Direction::Up) {
                 return false;
             }
         }
@@ -2010,7 +2009,7 @@ impl<W: LayoutElement> Layout<W> {
 
     pub fn focus_window_down_or_output(&mut self, output: &Output) -> bool {
         if let Some(workspace) = self.active_workspace_mut() {
-            if workspace.focus_down() {
+            if workspace.focus_window_in_direction(Direction::Down) {
                 return false;
             }
         }
@@ -2021,7 +2020,7 @@ impl<W: LayoutElement> Layout<W> {
 
     pub fn focus_column_left_or_output(&mut self, output: &Output) -> bool {
         if let Some(workspace) = self.active_workspace_mut() {
-            if workspace.focus_left() {
+            if workspace.focus_group_in_direction(Direction::Left) {
                 return false;
             }
         }
@@ -2032,7 +2031,7 @@ impl<W: LayoutElement> Layout<W> {
 
     pub fn focus_column_right_or_output(&mut self, output: &Output) -> bool {
         if let Some(workspace) = self.active_workspace_mut() {
-            if workspace.focus_right() {
+            if workspace.focus_group_in_direction(Direction::Right) {
                 return false;
             }
         }
@@ -2052,56 +2051,56 @@ impl<W: LayoutElement> Layout<W> {
         let Some(workspace) = self.active_workspace_mut() else {
             return;
         };
-        workspace.focus_down();
+        workspace.focus_window_in_direction(Direction::Down);
     }
 
     pub fn focus_up(&mut self) {
         let Some(workspace) = self.active_workspace_mut() else {
             return;
         };
-        workspace.focus_up();
+        workspace.focus_window_in_direction(Direction::Up);
     }
 
     pub fn focus_down_or_left(&mut self) {
         let Some(workspace) = self.active_workspace_mut() else {
             return;
         };
-        workspace.focus_down_or_left();
+        workspace.focus_window_or_group_in_direction(Direction::Down, Direction::Left);
     }
 
     pub fn focus_down_or_right(&mut self) {
         let Some(workspace) = self.active_workspace_mut() else {
             return;
         };
-        workspace.focus_down_or_right();
+        workspace.focus_window_or_group_in_direction(Direction::Down, Direction::Right);
     }
 
     pub fn focus_up_or_left(&mut self) {
         let Some(workspace) = self.active_workspace_mut() else {
             return;
         };
-        workspace.focus_up_or_left();
+        workspace.focus_window_or_group_in_direction(Direction::Up, Direction::Left);
     }
 
     pub fn focus_up_or_right(&mut self) {
         let Some(workspace) = self.active_workspace_mut() else {
             return;
         };
-        workspace.focus_up_or_right();
+        workspace.focus_window_or_group_in_direction(Direction::Up, Direction::Right);
     }
 
     pub fn focus_window_or_workspace_down(&mut self) {
         let Some(monitor) = self.active_monitor() else {
             return;
         };
-        monitor.focus_window_or_workspace_down();
+        monitor.focus_window_or_workspace_in_direction(Direction::Down);
     }
 
     pub fn focus_window_or_workspace_up(&mut self) {
         let Some(monitor) = self.active_monitor() else {
             return;
         };
-        monitor.focus_window_or_workspace_up();
+        monitor.focus_window_or_workspace_in_direction(Direction::Up);
     }
 
     pub fn focus_window_top(&mut self) {
@@ -2141,7 +2140,7 @@ impl<W: LayoutElement> Layout<W> {
         } else {
             ActivateWindow::No
         };
-        monitor.move_to_workspace_up(activate);
+        monitor.move_to_workspace_in_direction(Direction::Up, activate);
     }
 
     pub fn move_to_workspace_down(&mut self, focus: bool) {
@@ -2153,7 +2152,7 @@ impl<W: LayoutElement> Layout<W> {
         } else {
             ActivateWindow::No
         };
-        monitor.move_to_workspace_down(activate);
+        monitor.move_to_workspace_in_direction(Direction::Down, activate);
     }
 
     pub fn move_to_workspace(
@@ -2191,14 +2190,14 @@ impl<W: LayoutElement> Layout<W> {
         let Some(monitor) = self.active_monitor() else {
             return;
         };
-        monitor.move_column_to_workspace_up(activate);
+        monitor.move_column_to_workspace_in_direction(Direction::Up, activate);
     }
 
     pub fn move_column_to_workspace_down(&mut self, activate: bool) {
         let Some(monitor) = self.active_monitor() else {
             return;
         };
-        monitor.move_column_to_workspace_down(activate);
+        monitor.move_column_to_workspace_in_direction(Direction::Down, activate);
     }
 
     pub fn move_column_to_workspace(&mut self, idx: usize, activate: bool) {
@@ -2212,14 +2211,14 @@ impl<W: LayoutElement> Layout<W> {
         let Some(monitor) = self.active_monitor() else {
             return;
         };
-        monitor.switch_workspace_up();
+        monitor.switch_workspace_in_direction(Direction::Up);
     }
 
     pub fn switch_workspace_down(&mut self) {
         let Some(monitor) = self.active_monitor() else {
             return;
         };
-        monitor.switch_workspace_down();
+        monitor.switch_workspace_in_direction(Direction::Down);
     }
 
     pub fn switch_workspace(&mut self, idx: usize) {
@@ -2257,11 +2256,11 @@ impl<W: LayoutElement> Layout<W> {
         workspace.expel_from_column();
     }
 
-    pub fn swap_window_in_direction(&mut self, direction: ScrollDirection) {
+    pub fn swap_window_in_direction(&mut self, dir: Direction) {
         let Some(workspace) = self.active_workspace_mut() else {
             return;
         };
-        workspace.swap_window_in_direction(direction);
+        workspace.swap_window_in_physical_direction(dir);
     }
 
     pub fn toggle_column_tabbed_display(&mut self) {
@@ -4521,14 +4520,14 @@ impl<W: LayoutElement> Layout<W> {
         let Some(monitor) = self.active_monitor() else {
             return;
         };
-        monitor.move_workspace_down();
+        monitor.move_workspace_in_direction(Direction::Down);
     }
 
     pub fn move_workspace_up(&mut self) {
         let Some(monitor) = self.active_monitor() else {
             return;
         };
-        monitor.move_workspace_up();
+        monitor.move_workspace_in_direction(Direction::Up);
     }
 
     pub fn move_workspace_to_idx(

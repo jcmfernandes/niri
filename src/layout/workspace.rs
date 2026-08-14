@@ -910,18 +910,6 @@ impl<W: LayoutElement> Workspace<W> {
         }
     }
 
-    pub fn focus_column_right_or_first(&mut self) {
-        if !self.focus_right() {
-            self.focus_column_first();
-        }
-    }
-
-    pub fn focus_column_left_or_last(&mut self) {
-        if !self.focus_left() {
-            self.focus_column_last();
-        }
-    }
-
     pub fn focus_column(&mut self, index: usize) {
         if self.floating_is_active.get() {
             self.focus_tiling();
@@ -954,39 +942,10 @@ impl<W: LayoutElement> Workspace<W> {
         }
     }
 
-    pub fn focus_down_or_left(&mut self) {
-        if self.floating_is_active.get() {
-            self.focus_down();
-        } else {
-            self.scrolling.focus_down_or_left();
-        }
-    }
-
-    pub fn focus_down_or_right(&mut self) {
-        if self.floating_is_active.get() {
-            self.focus_down();
-        } else {
-            self.scrolling.focus_down_or_right();
-        }
-    }
-
-    pub fn focus_up_or_left(&mut self) {
-        if self.floating_is_active.get() {
-            self.focus_up();
-        } else {
-            self.scrolling.focus_up_or_left();
-        }
-    }
-
-    pub fn focus_up_or_right(&mut self) {
-        if self.floating_is_active.get() {
-            self.focus_up();
-        } else {
-            self.scrolling.focus_up_or_right();
-        }
-    }
-
     pub fn focus_window_top(&mut self) {
+        if self.axis().cross_direction(Direction::Up).is_none() {
+            return;
+        }
         if self.floating_is_active.get() {
             self.floating.focus_cross_edge(self.axis(), AxisEdge::Start);
         } else {
@@ -995,6 +954,9 @@ impl<W: LayoutElement> Workspace<W> {
     }
 
     pub fn focus_window_bottom(&mut self) {
+        if self.axis().cross_direction(Direction::Down).is_none() {
+            return;
+        }
         if self.floating_is_active.get() {
             self.floating.focus_cross_edge(self.axis(), AxisEdge::End);
         } else {
@@ -1003,13 +965,13 @@ impl<W: LayoutElement> Workspace<W> {
     }
 
     pub fn focus_window_down_or_top(&mut self) {
-        if !self.focus_down() {
+        if !self.focus_window_in_direction(Direction::Down) {
             self.focus_window_top();
         }
     }
 
     pub fn focus_window_up_or_bottom(&mut self) {
-        if !self.focus_up() {
+        if !self.focus_window_in_direction(Direction::Up) {
             self.focus_window_bottom();
         }
     }

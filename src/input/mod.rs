@@ -49,8 +49,7 @@ use self::resize_grab::ResizeGrab;
 use self::spatial_movement_grab::SpatialMovementGrab;
 #[cfg(feature = "dbus")]
 use crate::dbus::freedesktop_a11y::KbMonBlock;
-use crate::layout::axis::PhysicalAxis;
-use crate::layout::scrolling::ScrollDirection;
+use crate::layout::axis::{Direction, PhysicalAxis};
 use crate::layout::{ActivateWindow, LayoutElement as _};
 use crate::niri::{CastTarget, PointerVisibility, State};
 use crate::ui::mru::{WindowMru, WindowMruUi};
@@ -300,6 +299,20 @@ impl State {
                 let output = self.niri.output_under_cursor()?;
                 self.axis_policy_on_output(&output)
             })
+    }
+
+    // Unlike `view_axis_policy_under_cursor_or_active_workspace`, this ignores the pointer:
+    // the active workspace is the active monitor's active workspace, i.e. exactly the workspace
+    // and monitor that keyboard-emitted group/window and workspace-switch actions dispatch to.
+    // A single `InputAxisPolicy` can't distinguish "the group's workspace axis" from "the
+    // monitor's cross axis" for workspace-switching, but since both dispatch targets are this
+    // same workspace at bind-resolution time, sourcing the policy from it is exact for both,
+    // with no cursor-vs-active-output mismatch possible.
+    fn view_axis_policy_for_active_workspace(&self) -> Option<InputAxisPolicy> {
+        self.niri
+            .layout
+            .active_workspace()
+            .map(|ws| InputAxisPolicy::from_orientation(ws.orientation()))
     }
 
     fn view_axis_policy_for_swipe(&self, is_overview_open: bool) -> InputAxisPolicy {
@@ -660,7 +673,15 @@ impl State {
                 if matches!(res, FilterResult::Forward) {
                     // If we didn't find any bind, try other hardcoded keys.
                     if this.niri.keyboard_focus.is_overview() && pressed {
-                        if let Some(bind) = raw.and_then(|raw| hardcoded_overview_bind(raw, *mods))
+                        // Keyboard overview binds act on the active output, not wherever the
+                        // pointer happens to be (unlike the wheel path, which emits UnderMouse
+                        // actions and is correctly cursor-driven), so the policy must come from
+                        // the active workspace, not the cursor.
+                        let policy = this
+                            .view_axis_policy_for_active_workspace()
+                            .unwrap_or_default();
+                        if let Some(bind) =
+                            raw.and_then(|raw| hardcoded_overview_bind(raw, *mods, policy))
                         {
                             this.niri.suppressed_keys.insert(key_code);
                             return FilterResult::Intercept(Some(bind));
@@ -1195,6 +1216,9 @@ impl State {
                 // FIXME: granular
                 self.niri.queue_redraw_all();
             }
+            // This action is synthesized by the overview wheel handler, which has already
+            // resolved the orientation via overview_wheel_target(); it carries logical
+            // (strip-order) intent and must NOT go through the spatial gate.
             Action::FocusGroupLeftUnderMouse => {
                 if let Some((output, ws)) = self.niri.workspace_under_cursor(true) {
                     let ws_id = ws.id();
@@ -1215,6 +1239,7 @@ impl State {
                 // FIXME: granular
                 self.niri.queue_redraw_all();
             }
+            // See the comment on FocusGroupLeftUnderMouse above.
             Action::FocusGroupRightUnderMouse => {
                 if let Some((output, ws)) = self.niri.workspace_under_cursor(true) {
                     let ws_id = ws.id();
@@ -1580,6 +1605,9 @@ impl State {
                 // FIXME: granular
                 self.niri.queue_redraw_all();
             }
+            // This action is synthesized by the overview wheel handler, which has already
+            // resolved the orientation via overview_wheel_target(); it carries logical
+            // (strip-order) intent and must NOT go through the spatial gate.
             Action::FocusWorkspaceDownUnderMouse => {
                 if let Some(output) = self.niri.output_under_cursor() {
                     if let Some(mon) = self.niri.layout.monitor_for_output_mut(&output) {
@@ -1597,6 +1625,7 @@ impl State {
                 // FIXME: granular
                 self.niri.queue_redraw_all();
             }
+            // See the comment on FocusWorkspaceDownUnderMouse above.
             Action::FocusWorkspaceUpUnderMouse => {
                 if let Some(output) = self.niri.output_under_cursor() {
                     if let Some(mon) = self.niri.layout.monitor_for_output_mut(&output) {
@@ -1695,17 +1724,13 @@ impl State {
                 self.niri.queue_redraw_all();
             }
             Action::SwapWindowRight => {
-                self.niri
-                    .layout
-                    .swap_window_in_direction(ScrollDirection::Right);
+                self.niri.layout.swap_window_in_direction(Direction::Right);
                 self.maybe_warp_cursor_to_focus();
                 // FIXME: granular
                 self.niri.queue_redraw_all();
             }
             Action::SwapWindowLeft => {
-                self.niri
-                    .layout
-                    .swap_window_in_direction(ScrollDirection::Left);
+                self.niri.layout.swap_window_in_direction(Direction::Left);
                 self.maybe_warp_cursor_to_focus();
                 // FIXME: granular
                 self.niri.queue_redraw_all();
@@ -4953,7 +4978,17 @@ fn allowed_during_screenshot(action: &Action) -> bool {
     )
 }
 
-fn hardcoded_overview_bind(raw: Keysym, mods: ModifiersState) -> Option<Bind> {
+// Mirrors the overview wheel handler's axis awareness (see
+// `InputAxisPolicy::overview_wheel_target`): the arrow keys must resolve against the workspace
+// orientation the same way, or they go dead on a vertical main axis. On a vertical axis, Left
+// and Right already have a live logical counterpart (workspace switching) and are wired up
+// below; Up and Down would need group-focus actions oriented along the vertical axis, which
+// don't exist yet, so they remain unbound there for now.
+fn hardcoded_overview_bind(
+    raw: Keysym,
+    mods: ModifiersState,
+    policy: InputAxisPolicy,
+) -> Option<Bind> {
     let mods = modifiers_from_state(mods);
     if !mods.is_empty() {
         return None;
@@ -4964,6 +4999,11 @@ fn hardcoded_overview_bind(raw: Keysym, mods: ModifiersState) -> Option<Bind> {
         Keysym::Escape | Keysym::Return => {
             repeat = false;
             Action::ToggleOverview
+        }
+        Keysym::Left if policy.is_vertical() => Action::FocusWorkspaceUp,
+        Keysym::Right if policy.is_vertical() => Action::FocusWorkspaceDown,
+        Keysym::Up | Keysym::Down if policy.is_vertical() => {
+            return None;
         }
         Keysym::Left => Action::FocusGroupLeft,
         Keysym::Right => Action::FocusGroupRight,
@@ -5401,6 +5441,8 @@ fn make_binds_iter<'a>(
 mod tests {
     use std::cell::Cell;
 
+    use niri_config::Orientation;
+
     use super::*;
     use crate::animation::Clock;
 
@@ -5773,5 +5815,47 @@ mod tests {
             ),
             None,
         );
+    }
+
+    #[test]
+    fn hardcoded_overview_bind_respects_orientation() {
+        let horizontal = InputAxisPolicy::from_orientation(Orientation::Horizontal);
+        let vertical = InputAxisPolicy::from_orientation(Orientation::Vertical);
+        let mods = ModifiersState::default();
+
+        let action_for = |raw: Keysym, policy: InputAxisPolicy| {
+            hardcoded_overview_bind(raw, mods, policy).map(|bind| bind.action)
+        };
+
+        // On a horizontal main axis, arrows behave exactly as they always have.
+        assert!(matches!(
+            action_for(Keysym::Left, horizontal),
+            Some(Action::FocusGroupLeft)
+        ));
+        assert!(matches!(
+            action_for(Keysym::Right, horizontal),
+            Some(Action::FocusGroupRight)
+        ));
+        assert!(matches!(
+            action_for(Keysym::Up, horizontal),
+            Some(Action::FocusWindowOrWorkspaceUp)
+        ));
+        assert!(matches!(
+            action_for(Keysym::Down, horizontal),
+            Some(Action::FocusWindowOrWorkspaceDown)
+        ));
+
+        // On a vertical main axis, Left/Right cross to workspace switching instead of going
+        // dead. Up/Down have no live vertical group-focus action yet, so they stay unbound.
+        assert!(matches!(
+            action_for(Keysym::Left, vertical),
+            Some(Action::FocusWorkspaceUp)
+        ));
+        assert!(matches!(
+            action_for(Keysym::Right, vertical),
+            Some(Action::FocusWorkspaceDown)
+        ));
+        assert!(action_for(Keysym::Up, vertical).is_none());
+        assert!(action_for(Keysym::Down, vertical).is_none());
     }
 }
