@@ -2706,6 +2706,18 @@ mod tests {
                 "move-window-left-or-to-workspace-left",
                 Action::MoveWindowLeftOrToWorkspaceLeft,
             ),
+            ("focus-window-first", Action::FocusWindowFirst),
+            ("focus-window-last", Action::FocusWindowLast),
+            ("focus-window-leftmost", Action::FocusWindowLeftmost),
+            ("focus-window-rightmost", Action::FocusWindowRightmost),
+            (
+                "focus-window-right-or-leftmost",
+                Action::FocusWindowRightOrLeftmost,
+            ),
+            (
+                "focus-window-left-or-rightmost",
+                Action::FocusWindowLeftOrRightmost,
+            ),
         ];
         for (name, expected) in cases {
             let config = do_parse(&format!("binds {{ Mod+T {{ {name}; }}\n}}"));

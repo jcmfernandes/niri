@@ -2089,18 +2089,33 @@ impl<W: LayoutElement> Layout<W> {
         self.focus_window_or_workspace_in_direction(Direction::Up);
     }
 
-    pub fn focus_window_top(&mut self) {
+    pub fn focus_window_first(&mut self) {
         let Some(workspace) = self.active_workspace_mut() else {
             return;
         };
-        workspace.focus_window_top();
+        workspace.focus_window_first();
+    }
+
+    pub fn focus_window_last(&mut self) {
+        let Some(workspace) = self.active_workspace_mut() else {
+            return;
+        };
+        workspace.focus_window_last();
+    }
+
+    pub fn focus_window_edge_in_direction(&mut self, dir: Direction) {
+        let Some(workspace) = self.active_workspace_mut() else {
+            return;
+        };
+        workspace.focus_window_edge_in_direction(dir);
+    }
+
+    pub fn focus_window_top(&mut self) {
+        self.focus_window_edge_in_direction(Direction::Up);
     }
 
     pub fn focus_window_bottom(&mut self) {
-        let Some(workspace) = self.active_workspace_mut() else {
-            return;
-        };
-        workspace.focus_window_bottom();
+        self.focus_window_edge_in_direction(Direction::Down);
     }
 
     pub fn focus_window_down_or_top(&mut self) {
@@ -2115,6 +2130,20 @@ impl<W: LayoutElement> Layout<W> {
             return;
         };
         workspace.focus_window_up_or_bottom();
+    }
+
+    pub fn focus_window_right_or_leftmost(&mut self) {
+        let Some(workspace) = self.active_workspace_mut() else {
+            return;
+        };
+        workspace.focus_window_right_or_leftmost();
+    }
+
+    pub fn focus_window_left_or_rightmost(&mut self) {
+        let Some(workspace) = self.active_workspace_mut() else {
+            return;
+        };
+        workspace.focus_window_left_or_rightmost();
     }
 
     pub fn move_to_workspace_in_direction(&mut self, dir: Direction, focus: bool) {

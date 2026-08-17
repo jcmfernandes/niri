@@ -503,6 +503,12 @@ enum Op {
     FocusWindowBottom,
     FocusWindowDownOrTop,
     FocusWindowUpOrBottom,
+    FocusWindowFirst,
+    FocusWindowLast,
+    FocusWindowLeftmost,
+    FocusWindowRightmost,
+    FocusWindowRightOrLeftmost,
+    FocusWindowLeftOrRightmost,
     MoveGroupLeft,
     MoveGroupRight,
     MoveGroupToFirst,
@@ -1232,6 +1238,14 @@ impl Op {
             Op::FocusWindowBottom => layout.focus_window_bottom(),
             Op::FocusWindowDownOrTop => layout.focus_window_down_or_top(),
             Op::FocusWindowUpOrBottom => layout.focus_window_up_or_bottom(),
+            Op::FocusWindowFirst => layout.focus_window_first(),
+            Op::FocusWindowLast => layout.focus_window_last(),
+            Op::FocusWindowLeftmost => layout.focus_window_edge_in_direction(axis::Direction::Left),
+            Op::FocusWindowRightmost => {
+                layout.focus_window_edge_in_direction(axis::Direction::Right)
+            }
+            Op::FocusWindowRightOrLeftmost => layout.focus_window_right_or_leftmost(),
+            Op::FocusWindowLeftOrRightmost => layout.focus_window_left_or_rightmost(),
             Op::MoveGroupLeft => layout.move_left(),
             Op::MoveGroupRight => layout.move_right(),
             Op::MoveGroupToFirst => layout.move_column_to_first(),
@@ -2097,6 +2111,179 @@ fn spatial_window_focus() {
     assert!(!ws.focus_window_in_direction(axis::Direction::Left));
     assert!(!ws.focus_window_in_direction(axis::Direction::Right));
     assert!(ws.focus_window_in_direction(axis::Direction::Up));
+}
+
+#[test]
+fn spatial_window_edge_focus() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(1),
+        },
+        Op::AddWindow {
+            params: TestWindowParams::new(2),
+        },
+        Op::AddWindow {
+            params: TestWindowParams::new(3),
+        },
+    ];
+
+    // Merge the three columns into a single 3-window group, preserving window order 1, 2, 3
+    // from start to end -- using the orientation-agnostic Workspace methods directly (as
+    // spatial_window_focus above does) so the setup does not depend on which physical
+    // directions happen to be live on the fixture's orientation.
+    let merge_into_single_column = |ws: &mut Workspace<TestWindow>| {
+        ws.focus_column_first();
+        ws.consume_into_column();
+        ws.consume_into_column();
+    };
+
+    let active_id = |layout: &Layout<TestWindow>| {
+        *layout
+            .active_workspace()
+            .unwrap()
+            .active_window()
+            .unwrap()
+            .id()
+    };
+
+    // Vertical: the cross axis is physically Left/Right.
+    let mut vertical_options = Options::default();
+    vertical_options.layout.orientation = Orientation::Vertical;
+
+    let mut layout = check_ops_with_options(vertical_options, ops.clone());
+    merge_into_single_column(layout.active_workspace_mut().unwrap());
+    layout.verify_invariants();
+
+    // (a) focus_window_first/last jump to the ends -- live on every orientation.
+    layout.focus_window_last();
+    assert_eq!(
+        active_id(&layout),
+        3,
+        "focus_window_last must land on window 3"
+    );
+    layout.focus_window_first();
+    assert_eq!(
+        active_id(&layout),
+        1,
+        "focus_window_first must land on window 1"
+    );
+
+    // (b) focus_window_edge_in_direction(Left/Right) is live on vertical.
+    layout.focus_window_edge_in_direction(axis::Direction::Right);
+    assert_eq!(
+        active_id(&layout),
+        3,
+        "Right (cross-axis end) must land on window 3 on vertical"
+    );
+    layout.focus_window_edge_in_direction(axis::Direction::Left);
+    assert_eq!(
+        active_id(&layout),
+        1,
+        "Left (cross-axis start) must land on window 1 on vertical"
+    );
+
+    // (d) focus_window_top/bottom are off the vertical cross axis (Left/Right) and must no-op.
+    layout.focus_window_last();
+    assert_eq!(active_id(&layout), 3);
+    layout.focus_window_top();
+    assert_eq!(
+        active_id(&layout),
+        3,
+        "focus_window_top must not move on vertical"
+    );
+    layout.focus_window_bottom();
+    assert_eq!(
+        active_id(&layout),
+        3,
+        "focus_window_bottom must not move on vertical"
+    );
+
+    // (c) the wrap twins wrap on vertical.
+    layout.focus_window_first();
+    assert_eq!(active_id(&layout), 1);
+    layout.focus_window_right_or_leftmost();
+    assert_eq!(
+        active_id(&layout),
+        2,
+        "right_or_leftmost must step forward when not at the end"
+    );
+    layout.focus_window_right_or_leftmost();
+    assert_eq!(active_id(&layout), 3);
+    layout.focus_window_right_or_leftmost();
+    assert_eq!(
+        active_id(&layout),
+        1,
+        "right_or_leftmost must wrap to the leftmost window at the end"
+    );
+
+    layout.focus_window_left_or_rightmost();
+    assert_eq!(
+        active_id(&layout),
+        3,
+        "left_or_rightmost must wrap to the rightmost window at the start"
+    );
+    layout.focus_window_left_or_rightmost();
+    assert_eq!(active_id(&layout), 2);
+    layout.focus_window_left_or_rightmost();
+    assert_eq!(active_id(&layout), 1);
+
+    layout.verify_invariants();
+
+    // Horizontal: mirror image; the cross axis is physically Up/Down, so Left/Right (and hence
+    // Leftmost/Rightmost and their wrap twins) are entirely off-axis.
+    let mut horizontal_options = Options::default();
+    horizontal_options.layout.orientation = Orientation::Horizontal;
+
+    let mut layout = check_ops_with_options(horizontal_options, ops);
+    merge_into_single_column(layout.active_workspace_mut().unwrap());
+    layout.verify_invariants();
+
+    // (a) focus_window_first/last are still live -- orientation-neutral.
+    layout.focus_window_last();
+    assert_eq!(active_id(&layout), 3);
+    layout.focus_window_first();
+    assert_eq!(active_id(&layout), 1);
+
+    // (b) focus_window_edge_in_direction(Left/Right) is dead on horizontal.
+    layout.focus_window_last();
+    layout.focus_window_edge_in_direction(axis::Direction::Left);
+    assert_eq!(active_id(&layout), 3, "Left must not move on horizontal");
+    layout.focus_window_edge_in_direction(axis::Direction::Right);
+    assert_eq!(active_id(&layout), 3, "Right must not move on horizontal");
+
+    // (d) focus_window_top/bottom still work on horizontal -- unchanged, shared path.
+    layout.focus_window_top();
+    assert_eq!(
+        active_id(&layout),
+        1,
+        "focus_window_top must still move on horizontal"
+    );
+    layout.focus_window_bottom();
+    assert_eq!(
+        active_id(&layout),
+        3,
+        "focus_window_bottom must still move on horizontal"
+    );
+
+    // (c) the wrap twins are dead on horizontal: both halves are off-axis, so the whole action
+    // no-ops, matching every other vertical composite.
+    layout.focus_window_first();
+    assert_eq!(active_id(&layout), 1);
+    layout.focus_window_right_or_leftmost();
+    assert_eq!(
+        active_id(&layout),
+        1,
+        "right_or_leftmost must no-op on horizontal"
+    );
+    layout.focus_window_left_or_rightmost();
+    assert_eq!(
+        active_id(&layout),
+        1,
+        "left_or_rightmost must no-op on horizontal"
+    );
+
+    layout.verify_invariants();
 }
 
 #[test]

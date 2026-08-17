@@ -940,26 +940,39 @@ impl<W: LayoutElement> Workspace<W> {
         }
     }
 
-    pub fn focus_window_top(&mut self) {
-        if self.axis().cross_direction(Direction::Up).is_none() {
-            return;
-        }
+    fn focus_window_edge(&mut self, edge: AxisEdge) {
         if self.floating_is_active.get() {
-            self.floating.focus_cross_edge(self.axis(), AxisEdge::Start);
+            self.floating.focus_cross_edge(self.axis(), edge);
         } else {
-            self.scrolling.focus_top();
+            match edge {
+                AxisEdge::Start => self.scrolling.focus_top(),
+                AxisEdge::End => self.scrolling.focus_bottom(),
+            }
         }
     }
 
+    pub fn focus_window_first(&mut self) {
+        self.focus_window_edge(AxisEdge::Start);
+    }
+
+    pub fn focus_window_last(&mut self) {
+        self.focus_window_edge(AxisEdge::End);
+    }
+
+    pub fn focus_window_edge_in_direction(&mut self, dir: Direction) {
+        match self.axis().cross_direction(dir) {
+            Some(AxisDirection::Backward) => self.focus_window_edge(AxisEdge::Start),
+            Some(AxisDirection::Forward) => self.focus_window_edge(AxisEdge::End),
+            None => (),
+        }
+    }
+
+    pub fn focus_window_top(&mut self) {
+        self.focus_window_edge_in_direction(Direction::Up);
+    }
+
     pub fn focus_window_bottom(&mut self) {
-        if self.axis().cross_direction(Direction::Down).is_none() {
-            return;
-        }
-        if self.floating_is_active.get() {
-            self.floating.focus_cross_edge(self.axis(), AxisEdge::End);
-        } else {
-            self.scrolling.focus_bottom();
-        }
+        self.focus_window_edge_in_direction(Direction::Down);
     }
 
     pub fn focus_window_down_or_top(&mut self) {
@@ -971,6 +984,18 @@ impl<W: LayoutElement> Workspace<W> {
     pub fn focus_window_up_or_bottom(&mut self) {
         if !self.focus_window_in_direction(Direction::Up) {
             self.focus_window_bottom();
+        }
+    }
+
+    pub fn focus_window_right_or_leftmost(&mut self) {
+        if !self.focus_window_in_direction(Direction::Right) {
+            self.focus_window_edge_in_direction(Direction::Left);
+        }
+    }
+
+    pub fn focus_window_left_or_rightmost(&mut self) {
+        if !self.focus_window_in_direction(Direction::Left) {
+            self.focus_window_edge_in_direction(Direction::Right);
         }
     }
 

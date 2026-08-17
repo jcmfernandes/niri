@@ -488,6 +488,18 @@ pub enum Action {
     FocusWindowDownOrTop {},
     /// Focus the window above or the bottommost window.
     FocusWindowUpOrBottom {},
+    /// Focus the first window in the focused column.
+    FocusWindowFirst {},
+    /// Focus the last window in the focused column.
+    FocusWindowLast {},
+    /// Focus the leftmost window in the focused column.
+    FocusWindowLeftmost {},
+    /// Focus the rightmost window in the focused column.
+    FocusWindowRightmost {},
+    /// Focus the window to the right, or the leftmost window.
+    FocusWindowRightOrLeftmost {},
+    /// Focus the window to the left, or the rightmost window.
+    FocusWindowLeftOrRightmost {},
     /// Move the focused column to the left.
     ///
     /// Legacy spelling of the same action; prefer the group name.
@@ -2669,6 +2681,12 @@ mod tests {
                 "focus-group-up-or-last",
                 "move-window-right-or-to-workspace-right",
                 "move-window-left-or-to-workspace-left",
+                "focus-window-first",
+                "focus-window-last",
+                "focus-window-leftmost",
+                "focus-window-rightmost",
+                "focus-window-right-or-leftmost",
+                "focus-window-left-or-rightmost",
             ];
             for name in cases {
                 Action::try_parse_from(["action", name])
@@ -2689,6 +2707,12 @@ mod tests {
         assert_eq!(
             format!("{b:?}"),
             format!("{:?}", Action::FocusGroupDownOrFirst {})
+        );
+
+        let c: Action = serde_json::from_str(r#"{"FocusWindowFirst":{}}"#).unwrap();
+        assert_eq!(
+            format!("{c:?}"),
+            format!("{:?}", Action::FocusWindowFirst {})
         );
     }
 }
