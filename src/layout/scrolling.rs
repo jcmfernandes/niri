@@ -3997,7 +3997,7 @@ impl<W: LayoutElement> Column<W> {
         // opened with), and we can match it to a preset right away, if one exists.
         let preset_width_idx = options
             .layout
-            .preset_column_widths
+            .preset_group_widths
             .iter()
             .position(|preset| width == ColumnWidth::from(*preset));
 
@@ -4069,7 +4069,7 @@ impl<W: LayoutElement> Column<W> {
         }
 
         // If preset widths changed, clear our stored preset index.
-        if self.options.layout.preset_column_widths != options.layout.preset_column_widths {
+        if self.options.layout.preset_group_widths != options.layout.preset_group_widths {
             self.preset_width_idx = None;
         }
 
@@ -4933,7 +4933,7 @@ impl<W: LayoutElement> Column<W> {
             self.preset_width_idx
         };
 
-        let len = self.options.layout.preset_column_widths.len();
+        let len = self.options.layout.preset_group_widths.len();
         let preset_idx = if let Some(idx) = preset_idx {
             (idx + if forwards { 1 } else { len - 1 }) % len
         } else {
@@ -4944,7 +4944,7 @@ impl<W: LayoutElement> Column<W> {
             let mut it = self
                 .options
                 .layout
-                .preset_column_widths
+                .preset_group_widths
                 .iter()
                 .map(|preset| self.resolve_preset_width(*preset));
 
@@ -4969,7 +4969,7 @@ impl<W: LayoutElement> Column<W> {
             }
         };
 
-        let preset = self.options.layout.preset_column_widths[preset_idx];
+        let preset = self.options.layout.preset_group_widths[preset_idx];
         self.set_column_width(SizeChange::from(preset), Some(tile_idx), true);
 
         self.preset_width_idx = Some(preset_idx);
@@ -5493,7 +5493,7 @@ impl<W: LayoutElement> Column<W> {
         }
 
         if let Some(idx) = self.preset_width_idx {
-            assert!(idx < self.options.layout.preset_column_widths.len());
+            assert!(idx < self.options.layout.preset_group_widths.len());
         }
 
         let is_tabbed = self.display_mode == ColumnDisplay::Tabbed;

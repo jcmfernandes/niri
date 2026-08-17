@@ -1448,7 +1448,7 @@ mod tests {
                         },
                     ),
                 },
-                preset_column_widths: [
+                preset_group_widths: [
                     Proportion(
                         0.25,
                     ),
@@ -1462,7 +1462,7 @@ mod tests {
                         1280,
                     ),
                 ],
-                default_column_width: Some(
+                default_group_width: Some(
                     Proportion(
                         0.25,
                     ),
@@ -1799,6 +1799,7 @@ mod tests {
                         },
                     ],
                     default_column_width: None,
+                    default_group_width: None,
                     default_window_height: Some(
                         DefaultPresetSize(
                             Some(
@@ -2132,7 +2133,7 @@ mod tests {
                                 CTRL | ALT | COMPOSITOR,
                             ),
                         },
-                        action: MoveColumnToMonitor(
+                        action: MoveGroupToMonitor(
                             "DP-1",
                         ),
                         repeat: true,
@@ -2150,7 +2151,7 @@ mod tests {
                                 COMPOSITOR,
                             ),
                         },
-                        action: ConsumeWindowIntoColumn,
+                        action: ConsumeWindowIntoGroup,
                         repeat: true,
                         cooldown: None,
                         allow_when_locked: false,
@@ -2501,6 +2502,167 @@ mod tests {
         -                0.6666666666666666,
         +                0.66667,
         "#,
+        );
+    }
+
+    #[test]
+    fn column_spellings_parse_like_group_actions() {
+        let pairs = [
+            ("focus-window-in-column 2", "focus-window-in-group 2"),
+            ("focus-column-left", "focus-group-left"),
+            ("focus-column-right", "focus-group-right"),
+            ("focus-column-first", "focus-group-first"),
+            ("focus-column-last", "focus-group-last"),
+            ("focus-column-right-or-first", "focus-group-right-or-first"),
+            ("focus-column-left-or-last", "focus-group-left-or-last"),
+            ("focus-column 3", "focus-group 3"),
+            (
+                "focus-column-or-monitor-left",
+                "focus-group-or-monitor-left",
+            ),
+            (
+                "focus-column-or-monitor-right",
+                "focus-group-or-monitor-right",
+            ),
+            (
+                "focus-window-down-or-column-left",
+                "focus-window-down-or-group-left",
+            ),
+            (
+                "focus-window-down-or-column-right",
+                "focus-window-down-or-group-right",
+            ),
+            (
+                "focus-window-up-or-column-left",
+                "focus-window-up-or-group-left",
+            ),
+            (
+                "focus-window-up-or-column-right",
+                "focus-window-up-or-group-right",
+            ),
+            ("move-column-left", "move-group-left"),
+            ("move-column-right", "move-group-right"),
+            ("move-column-to-first", "move-group-to-first"),
+            ("move-column-to-last", "move-group-to-last"),
+            (
+                "move-column-left-or-to-monitor-left",
+                "move-group-left-or-to-monitor-left",
+            ),
+            (
+                "move-column-right-or-to-monitor-right",
+                "move-group-right-or-to-monitor-right",
+            ),
+            ("move-column-to-index 3", "move-group-to-index 3"),
+            ("consume-window-into-column", "consume-window-into-group"),
+            ("expel-window-from-column", "expel-window-from-group"),
+            (
+                "toggle-column-tabbed-display",
+                "toggle-group-tabbed-display",
+            ),
+            (
+                r#"set-column-display "tabbed""#,
+                r#"set-group-display "tabbed""#,
+            ),
+            ("center-column", "center-group"),
+            ("center-visible-columns", "center-visible-groups"),
+            (
+                "move-column-to-workspace-down",
+                "move-group-to-workspace-down",
+            ),
+            ("move-column-to-workspace-up", "move-group-to-workspace-up"),
+            ("move-column-to-workspace 2", "move-group-to-workspace 2"),
+            ("move-column-to-monitor-left", "move-group-to-monitor-left"),
+            (
+                "move-column-to-monitor-right",
+                "move-group-to-monitor-right",
+            ),
+            ("move-column-to-monitor-down", "move-group-to-monitor-down"),
+            ("move-column-to-monitor-up", "move-group-to-monitor-up"),
+            (
+                "move-column-to-monitor-previous",
+                "move-group-to-monitor-previous",
+            ),
+            ("move-column-to-monitor-next", "move-group-to-monitor-next"),
+            (
+                r#"move-column-to-monitor "DP-1""#,
+                r#"move-group-to-monitor "DP-1""#,
+            ),
+            ("maximize-column", "maximize-group"),
+        ];
+        for (column, group) in pairs {
+            let a = do_parse(&format!("binds {{ Mod+T {{ {column}; }}\n}}"));
+            let b = do_parse(&format!("binds {{ Mod+T {{ {group}; }}\n}}"));
+            assert_eq!(a.binds, b.binds, "`{column}` should parse like `{group}`");
+        }
+    }
+
+    #[test]
+    fn width_column_spellings_parse_like_group_actions() {
+        let pairs = [
+            ("switch-preset-column-width", "switch-preset-group-width"),
+            (
+                "switch-preset-column-width-back",
+                "switch-preset-group-width-back",
+            ),
+            (r#"set-column-width "50%""#, r#"set-group-width "50%""#),
+            (
+                "expand-column-to-available-width",
+                "expand-group-to-available-width",
+            ),
+        ];
+        for (column, group) in pairs {
+            let a = do_parse(&format!("binds {{ Mod+T {{ {column}; }}\n}}"));
+            let b = do_parse(&format!("binds {{ Mod+T {{ {group}; }}\n}}"));
+            assert_eq!(a.binds, b.binds, "`{column}` should parse like `{group}`");
+        }
+    }
+
+    #[test]
+    fn width_option_spellings() {
+        let legacy = do_parse(
+            r#"
+            layout {
+                preset-column-widths { proportion 0.25; }
+                default-column-width { proportion 0.25; }
+            }
+            "#,
+        );
+        let group = do_parse(
+            r#"
+            layout {
+                preset-group-widths { proportion 0.25; }
+                default-group-width { proportion 0.25; }
+            }
+            "#,
+        );
+        assert_eq!(
+            legacy.layout.preset_group_widths,
+            group.layout.preset_group_widths
+        );
+        assert_eq!(
+            legacy.layout.default_group_width,
+            group.layout.default_group_width
+        );
+
+        let both = do_parse(
+            r#"
+            layout {
+                preset-column-widths { proportion 0.25; }
+                preset-group-widths { proportion 0.5; }
+                default-column-width { proportion 0.25; }
+                default-group-width { proportion 0.5; }
+            }
+            "#,
+        );
+        assert_eq!(
+            both.layout.preset_group_widths,
+            vec![PresetSize::Proportion(0.5)],
+            "group spelling should win when both are set",
+        );
+        assert_eq!(
+            both.layout.default_group_width,
+            Some(PresetSize::Proportion(0.5)),
+            "group spelling should win when both are set",
         );
     }
 }

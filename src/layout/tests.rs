@@ -462,38 +462,38 @@ enum Op {
         is_fullscreen: bool,
     },
     ToggleWindowedFullscreen(#[proptest(strategy = "1..=5usize")] usize),
-    FocusColumnLeft,
-    FocusColumnRight,
-    FocusColumnFirst,
-    FocusColumnLast,
-    FocusColumnRightOrFirst,
-    FocusColumnLeftOrLast,
-    FocusColumn(#[proptest(strategy = "1..=5usize")] usize),
+    FocusGroupLeft,
+    FocusGroupRight,
+    FocusGroupFirst,
+    FocusGroupLast,
+    FocusGroupRightOrFirst,
+    FocusGroupLeftOrLast,
+    FocusGroup(#[proptest(strategy = "1..=5usize")] usize),
     FocusWindowOrMonitorUp(#[proptest(strategy = "1..=2u8")] u8),
     FocusWindowOrMonitorDown(#[proptest(strategy = "1..=2u8")] u8),
-    FocusColumnOrMonitorLeft(#[proptest(strategy = "1..=2u8")] u8),
-    FocusColumnOrMonitorRight(#[proptest(strategy = "1..=2u8")] u8),
+    FocusGroupOrMonitorLeft(#[proptest(strategy = "1..=2u8")] u8),
+    FocusGroupOrMonitorRight(#[proptest(strategy = "1..=2u8")] u8),
     FocusWindowDown,
     FocusWindowUp,
-    FocusWindowDownOrColumnLeft,
-    FocusWindowDownOrColumnRight,
-    FocusWindowUpOrColumnLeft,
-    FocusWindowUpOrColumnRight,
+    FocusWindowDownOrGroupLeft,
+    FocusWindowDownOrGroupRight,
+    FocusWindowUpOrGroupLeft,
+    FocusWindowUpOrGroupRight,
     FocusWindowOrWorkspaceDown,
     FocusWindowOrWorkspaceUp,
     FocusWindow(#[proptest(strategy = "1..=5usize")] usize),
-    FocusWindowInColumn(#[proptest(strategy = "1..=5u8")] u8),
+    FocusWindowInGroup(#[proptest(strategy = "1..=5u8")] u8),
     FocusWindowTop,
     FocusWindowBottom,
     FocusWindowDownOrTop,
     FocusWindowUpOrBottom,
-    MoveColumnLeft,
-    MoveColumnRight,
-    MoveColumnToFirst,
-    MoveColumnToLast,
-    MoveColumnLeftOrToMonitorLeft(#[proptest(strategy = "1..=2u8")] u8),
-    MoveColumnRightOrToMonitorRight(#[proptest(strategy = "1..=2u8")] u8),
-    MoveColumnToIndex(#[proptest(strategy = "1..=5usize")] usize),
+    MoveGroupLeft,
+    MoveGroupRight,
+    MoveGroupToFirst,
+    MoveGroupToLast,
+    MoveGroupLeftOrToMonitorLeft(#[proptest(strategy = "1..=2u8")] u8),
+    MoveGroupRightOrToMonitorRight(#[proptest(strategy = "1..=2u8")] u8),
+    MoveGroupToIndex(#[proptest(strategy = "1..=5usize")] usize),
     MoveWindowDown,
     MoveWindowUp,
     MoveWindowDownOrToWorkspaceDown,
@@ -506,17 +506,17 @@ enum Op {
         #[proptest(strategy = "proptest::option::of(1..=5usize)")]
         id: Option<usize>,
     },
-    ConsumeWindowIntoColumn,
-    ExpelWindowFromColumn,
+    ConsumeWindowIntoGroup,
+    ExpelWindowFromGroup,
     SwapWindowInDirection(#[proptest(strategy = "arbitrary_scroll_direction()")] ScrollDirection),
-    ToggleColumnTabbedDisplay,
-    SetColumnDisplay(#[proptest(strategy = "arbitrary_column_display()")] ColumnDisplay),
-    CenterColumn,
+    ToggleGroupTabbedDisplay,
+    SetGroupDisplay(#[proptest(strategy = "arbitrary_column_display()")] ColumnDisplay),
+    CenterGroup,
     CenterWindow {
         #[proptest(strategy = "proptest::option::of(1..=5usize)")]
         id: Option<usize>,
     },
-    CenterVisibleColumns,
+    CenterVisibleGroups,
     FocusWorkspaceDown,
     FocusWorkspaceUp,
     FocusWorkspace(#[proptest(strategy = "0..=4usize")] usize),
@@ -530,9 +530,9 @@ enum Op {
         #[proptest(strategy = "0..=4usize")]
         workspace_idx: usize,
     },
-    MoveColumnToWorkspaceDown(bool),
-    MoveColumnToWorkspaceUp(bool),
-    MoveColumnToWorkspace(#[proptest(strategy = "0..=4usize")] usize, bool),
+    MoveGroupToWorkspaceDown(bool),
+    MoveGroupToWorkspaceUp(bool),
+    MoveGroupToWorkspace(#[proptest(strategy = "0..=4usize")] usize, bool),
     MoveWorkspaceDown,
     MoveWorkspaceUp,
     MoveWorkspaceToIndex {
@@ -572,8 +572,8 @@ enum Op {
         target_ws_idx: Option<usize>,
         activate: bool,
     },
-    SwitchPresetColumnWidth,
-    SwitchPresetColumnWidthBack,
+    SwitchPresetGroupWidth,
+    SwitchPresetGroupWidthBack,
     SwitchPresetWindowWidth {
         #[proptest(strategy = "proptest::option::of(1..=5usize)")]
         id: Option<usize>,
@@ -590,12 +590,12 @@ enum Op {
         #[proptest(strategy = "proptest::option::of(1..=5usize)")]
         id: Option<usize>,
     },
-    MaximizeColumn,
+    MaximizeGroup,
     MaximizeWindowToEdges {
         #[proptest(strategy = "proptest::option::of(1..=5usize)")]
         id: Option<usize>,
     },
-    SetColumnWidth(#[proptest(strategy = "arbitrary_size_change()")] SizeChange),
+    SetGroupWidth(#[proptest(strategy = "arbitrary_size_change()")] SizeChange),
     SetWindowWidth {
         #[proptest(strategy = "proptest::option::of(1..=5usize)")]
         id: Option<usize>,
@@ -612,7 +612,7 @@ enum Op {
         #[proptest(strategy = "proptest::option::of(1..=5usize)")]
         id: Option<usize>,
     },
-    ExpandColumnToAvailableWidth,
+    ExpandGroupToAvailableWidth,
     ToggleWindowFloating {
         #[proptest(strategy = "proptest::option::of(1..=5usize)")]
         id: Option<usize>,
@@ -1082,13 +1082,13 @@ impl Op {
                 }
                 layout.toggle_windowed_fullscreen(&id);
             }
-            Op::FocusColumnLeft => layout.focus_left(),
-            Op::FocusColumnRight => layout.focus_right(),
-            Op::FocusColumnFirst => layout.focus_column_first(),
-            Op::FocusColumnLast => layout.focus_column_last(),
-            Op::FocusColumnRightOrFirst => layout.focus_column_right_or_first(),
-            Op::FocusColumnLeftOrLast => layout.focus_column_left_or_last(),
-            Op::FocusColumn(index) => layout.focus_column(index),
+            Op::FocusGroupLeft => layout.focus_left(),
+            Op::FocusGroupRight => layout.focus_right(),
+            Op::FocusGroupFirst => layout.focus_column_first(),
+            Op::FocusGroupLast => layout.focus_column_last(),
+            Op::FocusGroupRightOrFirst => layout.focus_column_right_or_first(),
+            Op::FocusGroupLeftOrLast => layout.focus_column_left_or_last(),
+            Op::FocusGroup(index) => layout.focus_column(index),
             Op::FocusWindowOrMonitorUp(id) => {
                 let name = format!("output{id}");
                 let Some(output) = layout.outputs().find(|o| o.name() == name).cloned() else {
@@ -1105,7 +1105,7 @@ impl Op {
 
                 layout.focus_window_down_or_output(&output);
             }
-            Op::FocusColumnOrMonitorLeft(id) => {
+            Op::FocusGroupOrMonitorLeft(id) => {
                 let name = format!("output{id}");
                 let Some(output) = layout.outputs().find(|o| o.name() == name).cloned() else {
                     return;
@@ -1113,7 +1113,7 @@ impl Op {
 
                 layout.focus_column_left_or_output(&output);
             }
-            Op::FocusColumnOrMonitorRight(id) => {
+            Op::FocusGroupOrMonitorRight(id) => {
                 let name = format!("output{id}");
                 let Some(output) = layout.outputs().find(|o| o.name() == name).cloned() else {
                     return;
@@ -1123,23 +1123,23 @@ impl Op {
             }
             Op::FocusWindowDown => layout.focus_down(),
             Op::FocusWindowUp => layout.focus_up(),
-            Op::FocusWindowDownOrColumnLeft => layout.focus_down_or_left(),
-            Op::FocusWindowDownOrColumnRight => layout.focus_down_or_right(),
-            Op::FocusWindowUpOrColumnLeft => layout.focus_up_or_left(),
-            Op::FocusWindowUpOrColumnRight => layout.focus_up_or_right(),
+            Op::FocusWindowDownOrGroupLeft => layout.focus_down_or_left(),
+            Op::FocusWindowDownOrGroupRight => layout.focus_down_or_right(),
+            Op::FocusWindowUpOrGroupLeft => layout.focus_up_or_left(),
+            Op::FocusWindowUpOrGroupRight => layout.focus_up_or_right(),
             Op::FocusWindowOrWorkspaceDown => layout.focus_window_or_workspace_down(),
             Op::FocusWindowOrWorkspaceUp => layout.focus_window_or_workspace_up(),
             Op::FocusWindow(id) => layout.activate_window(&id),
-            Op::FocusWindowInColumn(index) => layout.focus_window_in_column(index),
+            Op::FocusWindowInGroup(index) => layout.focus_window_in_column(index),
             Op::FocusWindowTop => layout.focus_window_top(),
             Op::FocusWindowBottom => layout.focus_window_bottom(),
             Op::FocusWindowDownOrTop => layout.focus_window_down_or_top(),
             Op::FocusWindowUpOrBottom => layout.focus_window_up_or_bottom(),
-            Op::MoveColumnLeft => layout.move_left(),
-            Op::MoveColumnRight => layout.move_right(),
-            Op::MoveColumnToFirst => layout.move_column_to_first(),
-            Op::MoveColumnToLast => layout.move_column_to_last(),
-            Op::MoveColumnLeftOrToMonitorLeft(id) => {
+            Op::MoveGroupLeft => layout.move_left(),
+            Op::MoveGroupRight => layout.move_right(),
+            Op::MoveGroupToFirst => layout.move_column_to_first(),
+            Op::MoveGroupToLast => layout.move_column_to_last(),
+            Op::MoveGroupLeftOrToMonitorLeft(id) => {
                 let name = format!("output{id}");
                 let Some(output) = layout.outputs().find(|o| o.name() == name).cloned() else {
                     return;
@@ -1147,7 +1147,7 @@ impl Op {
 
                 layout.move_column_left_or_to_output(&output);
             }
-            Op::MoveColumnRightOrToMonitorRight(id) => {
+            Op::MoveGroupRightOrToMonitorRight(id) => {
                 let name = format!("output{id}");
                 let Some(output) = layout.outputs().find(|o| o.name() == name).cloned() else {
                     return;
@@ -1155,7 +1155,7 @@ impl Op {
 
                 layout.move_column_right_or_to_output(&output);
             }
-            Op::MoveColumnToIndex(index) => layout.move_column_to_index(index),
+            Op::MoveGroupToIndex(index) => layout.move_column_to_index(index),
             Op::MoveWindowDown => layout.move_down(),
             Op::MoveWindowUp => layout.move_up(),
             Op::MoveWindowDownOrToWorkspaceDown => layout.move_down_or_to_workspace_down(),
@@ -1168,17 +1168,17 @@ impl Op {
                 let id = id.filter(|id| layout.has_window(id));
                 layout.consume_or_expel_window_right(id.as_ref());
             }
-            Op::ConsumeWindowIntoColumn => layout.consume_into_column(),
-            Op::ExpelWindowFromColumn => layout.expel_from_column(),
+            Op::ConsumeWindowIntoGroup => layout.consume_into_column(),
+            Op::ExpelWindowFromGroup => layout.expel_from_column(),
             Op::SwapWindowInDirection(direction) => layout.swap_window_in_direction(direction),
-            Op::ToggleColumnTabbedDisplay => layout.toggle_column_tabbed_display(),
-            Op::SetColumnDisplay(display) => layout.set_column_display(display),
-            Op::CenterColumn => layout.center_column(),
+            Op::ToggleGroupTabbedDisplay => layout.toggle_column_tabbed_display(),
+            Op::SetGroupDisplay(display) => layout.set_column_display(display),
+            Op::CenterGroup => layout.center_column(),
             Op::CenterWindow { id } => {
                 let id = id.filter(|id| layout.has_window(id));
                 layout.center_window(id.as_ref());
             }
-            Op::CenterVisibleColumns => layout.center_visible_columns(),
+            Op::CenterVisibleGroups => layout.center_visible_columns(),
             Op::FocusWorkspaceDown => layout.switch_workspace_down(),
             Op::FocusWorkspaceUp => layout.switch_workspace_up(),
             Op::FocusWorkspace(idx) => layout.switch_workspace(idx),
@@ -1195,9 +1195,9 @@ impl Op {
                 let window_id = window_id.filter(|id| layout.has_window(id));
                 layout.move_to_workspace(window_id.as_ref(), workspace_idx, ActivateWindow::Smart);
             }
-            Op::MoveColumnToWorkspaceDown(focus) => layout.move_column_to_workspace_down(focus),
-            Op::MoveColumnToWorkspaceUp(focus) => layout.move_column_to_workspace_up(focus),
-            Op::MoveColumnToWorkspace(idx, focus) => layout.move_column_to_workspace(idx, focus),
+            Op::MoveGroupToWorkspaceDown(focus) => layout.move_column_to_workspace_down(focus),
+            Op::MoveGroupToWorkspaceUp(focus) => layout.move_column_to_workspace_up(focus),
+            Op::MoveGroupToWorkspace(idx, focus) => layout.move_column_to_workspace(idx, focus),
             Op::MoveWindowToOutput {
                 window_id,
                 output_id: id,
@@ -1304,8 +1304,8 @@ impl Op {
 
                 layout.move_workspace_to_output_by_id(old_idx, Some(old_output), &output);
             }
-            Op::SwitchPresetColumnWidth => layout.toggle_width(true),
-            Op::SwitchPresetColumnWidthBack => layout.toggle_width(false),
+            Op::SwitchPresetGroupWidth => layout.toggle_width(true),
+            Op::SwitchPresetGroupWidthBack => layout.toggle_width(false),
             Op::SwitchPresetWindowWidth { id } => {
                 let id = id.filter(|id| layout.has_window(id));
                 layout.toggle_window_width(id.as_ref(), true);
@@ -1322,7 +1322,7 @@ impl Op {
                 let id = id.filter(|id| layout.has_window(id));
                 layout.toggle_window_height(id.as_ref(), false);
             }
-            Op::MaximizeColumn => layout.toggle_full_width(),
+            Op::MaximizeGroup => layout.toggle_full_width(),
             Op::MaximizeWindowToEdges { id } => {
                 let id = id.or_else(|| layout.focus().map(|win| *win.id()));
                 let Some(id) = id else {
@@ -1333,7 +1333,7 @@ impl Op {
                 }
                 layout.toggle_maximized(&id);
             }
-            Op::SetColumnWidth(change) => layout.set_column_width(change),
+            Op::SetGroupWidth(change) => layout.set_column_width(change),
             Op::SetWindowWidth { id, change } => {
                 let id = id.filter(|id| layout.has_window(id));
                 layout.set_window_width(id.as_ref(), change);
@@ -1346,7 +1346,7 @@ impl Op {
                 let id = id.filter(|id| layout.has_window(id));
                 layout.reset_window_height(id.as_ref());
             }
-            Op::ExpandColumnToAvailableWidth => layout.expand_column_to_available_width(),
+            Op::ExpandGroupToAvailableWidth => layout.expand_column_to_available_width(),
             Op::ToggleWindowFloating { id } => {
                 let id = id.filter(|id| layout.has_window(id));
                 layout.toggle_window_floating(id.as_ref());
@@ -1700,29 +1700,29 @@ fn operations_dont_panic() {
         Op::MaximizeWindowToEdges { id: Some(1) },
         Op::MaximizeWindowToEdges { id: Some(2) },
         Op::MaximizeWindowToEdges { id: Some(3) },
-        Op::FocusColumnLeft,
-        Op::FocusColumnRight,
-        Op::FocusColumnRightOrFirst,
-        Op::FocusColumnLeftOrLast,
+        Op::FocusGroupLeft,
+        Op::FocusGroupRight,
+        Op::FocusGroupRightOrFirst,
+        Op::FocusGroupLeftOrLast,
         Op::FocusWindowOrMonitorUp(0),
         Op::FocusWindowOrMonitorDown(1),
-        Op::FocusColumnOrMonitorLeft(0),
-        Op::FocusColumnOrMonitorRight(1),
+        Op::FocusGroupOrMonitorLeft(0),
+        Op::FocusGroupOrMonitorRight(1),
         Op::FocusWindowUp,
-        Op::FocusWindowUpOrColumnLeft,
-        Op::FocusWindowUpOrColumnRight,
+        Op::FocusWindowUpOrGroupLeft,
+        Op::FocusWindowUpOrGroupRight,
         Op::FocusWindowOrWorkspaceUp,
         Op::FocusWindowDown,
-        Op::FocusWindowDownOrColumnLeft,
-        Op::FocusWindowDownOrColumnRight,
+        Op::FocusWindowDownOrGroupLeft,
+        Op::FocusWindowDownOrGroupRight,
         Op::FocusWindowOrWorkspaceDown,
-        Op::MoveColumnLeft,
-        Op::MoveColumnRight,
-        Op::MoveColumnLeftOrToMonitorLeft(0),
-        Op::MoveColumnRightOrToMonitorRight(1),
-        Op::ConsumeWindowIntoColumn,
-        Op::ExpelWindowFromColumn,
-        Op::CenterColumn,
+        Op::MoveGroupLeft,
+        Op::MoveGroupRight,
+        Op::MoveGroupLeftOrToMonitorLeft(0),
+        Op::MoveGroupRightOrToMonitorRight(1),
+        Op::ConsumeWindowIntoGroup,
+        Op::ExpelWindowFromGroup,
+        Op::CenterGroup,
         Op::FocusWorkspaceDown,
         Op::FocusWorkspaceUp,
         Op::FocusWorkspace(1),
@@ -1737,10 +1737,10 @@ fn operations_dont_panic() {
             window_id: None,
             workspace_idx: 2,
         },
-        Op::MoveColumnToWorkspaceDown(true),
-        Op::MoveColumnToWorkspaceUp(true),
-        Op::MoveColumnToWorkspace(1, true),
-        Op::MoveColumnToWorkspace(2, true),
+        Op::MoveGroupToWorkspaceDown(true),
+        Op::MoveGroupToWorkspaceUp(true),
+        Op::MoveGroupToWorkspace(1, true),
+        Op::MoveGroupToWorkspace(2, true),
         Op::MoveWindowDown,
         Op::MoveWindowDownOrToWorkspaceDown,
         Op::MoveWindowUp,
@@ -1748,7 +1748,7 @@ fn operations_dont_panic() {
         Op::ConsumeOrExpelWindowLeft { id: None },
         Op::ConsumeOrExpelWindowRight { id: None },
         Op::MoveWorkspaceToOutput(1),
-        Op::ToggleColumnTabbedDisplay,
+        Op::ToggleGroupTabbedDisplay,
     ];
 
     for third in &every_op {
@@ -1790,8 +1790,8 @@ fn operations_from_starting_state_dont_panic() {
         Op::AddWindow {
             params: TestWindowParams::new(3),
         },
-        Op::FocusColumnLeft,
-        Op::ConsumeWindowIntoColumn,
+        Op::FocusGroupLeft,
+        Op::ConsumeWindowIntoGroup,
         Op::AddWindow {
             params: TestWindowParams::new(4),
         },
@@ -1874,29 +1874,29 @@ fn operations_from_starting_state_dont_panic() {
             window: 2,
             is_fullscreen: true,
         },
-        Op::FocusColumnLeft,
-        Op::FocusColumnRight,
-        Op::FocusColumnRightOrFirst,
-        Op::FocusColumnLeftOrLast,
+        Op::FocusGroupLeft,
+        Op::FocusGroupRight,
+        Op::FocusGroupRightOrFirst,
+        Op::FocusGroupLeftOrLast,
         Op::FocusWindowOrMonitorUp(0),
         Op::FocusWindowOrMonitorDown(1),
-        Op::FocusColumnOrMonitorLeft(0),
-        Op::FocusColumnOrMonitorRight(1),
+        Op::FocusGroupOrMonitorLeft(0),
+        Op::FocusGroupOrMonitorRight(1),
         Op::FocusWindowUp,
-        Op::FocusWindowUpOrColumnLeft,
-        Op::FocusWindowUpOrColumnRight,
+        Op::FocusWindowUpOrGroupLeft,
+        Op::FocusWindowUpOrGroupRight,
         Op::FocusWindowOrWorkspaceUp,
         Op::FocusWindowDown,
-        Op::FocusWindowDownOrColumnLeft,
-        Op::FocusWindowDownOrColumnRight,
+        Op::FocusWindowDownOrGroupLeft,
+        Op::FocusWindowDownOrGroupRight,
         Op::FocusWindowOrWorkspaceDown,
-        Op::MoveColumnLeft,
-        Op::MoveColumnRight,
-        Op::MoveColumnLeftOrToMonitorLeft(0),
-        Op::MoveColumnRightOrToMonitorRight(1),
-        Op::ConsumeWindowIntoColumn,
-        Op::ExpelWindowFromColumn,
-        Op::CenterColumn,
+        Op::MoveGroupLeft,
+        Op::MoveGroupRight,
+        Op::MoveGroupLeftOrToMonitorLeft(0),
+        Op::MoveGroupRightOrToMonitorRight(1),
+        Op::ConsumeWindowIntoGroup,
+        Op::ExpelWindowFromGroup,
+        Op::CenterGroup,
         Op::FocusWorkspaceDown,
         Op::FocusWorkspaceUp,
         Op::FocusWorkspace(1),
@@ -1916,18 +1916,18 @@ fn operations_from_starting_state_dont_panic() {
             window_id: None,
             workspace_idx: 3,
         },
-        Op::MoveColumnToWorkspaceDown(true),
-        Op::MoveColumnToWorkspaceUp(true),
-        Op::MoveColumnToWorkspace(1, true),
-        Op::MoveColumnToWorkspace(2, true),
-        Op::MoveColumnToWorkspace(3, true),
+        Op::MoveGroupToWorkspaceDown(true),
+        Op::MoveGroupToWorkspaceUp(true),
+        Op::MoveGroupToWorkspace(1, true),
+        Op::MoveGroupToWorkspace(2, true),
+        Op::MoveGroupToWorkspace(3, true),
         Op::MoveWindowDown,
         Op::MoveWindowDownOrToWorkspaceDown,
         Op::MoveWindowUp,
         Op::MoveWindowUpOrToWorkspaceUp,
         Op::ConsumeOrExpelWindowLeft { id: None },
         Op::ConsumeOrExpelWindowRight { id: None },
-        Op::ToggleColumnTabbedDisplay,
+        Op::ToggleGroupTabbedDisplay,
     ];
 
     for third in &every_op {
@@ -2240,8 +2240,8 @@ fn workspace_transfer_during_switch_gets_cleaned_up() {
         },
         Op::RemoveOutput(1),
         Op::AddOutput(2),
-        Op::MoveColumnToWorkspaceDown(true),
-        Op::MoveColumnToWorkspaceDown(true),
+        Op::MoveGroupToWorkspaceDown(true),
+        Op::MoveGroupToWorkspaceDown(true),
         Op::AddOutput(1),
     ];
 
@@ -3043,7 +3043,7 @@ fn set_width_fixed_negative() {
             params: TestWindowParams::new(3),
         },
         Op::ToggleWindowFloating { id: Some(3) },
-        Op::SetColumnWidth(SizeChange::SetFixed(-100)),
+        Op::SetGroupWidth(SizeChange::SetFixed(-100)),
     ];
     check_ops(ops);
 }
@@ -3326,9 +3326,9 @@ fn removing_window_above_preserves_focused_window() {
         Op::AddWindow {
             params: TestWindowParams::new(2),
         },
-        Op::FocusColumnFirst,
-        Op::ConsumeWindowIntoColumn,
-        Op::ConsumeWindowIntoColumn,
+        Op::FocusGroupFirst,
+        Op::ConsumeWindowIntoGroup,
+        Op::ConsumeWindowIntoGroup,
         Op::FocusWindowDown,
         Op::CloseWindow(0),
     ];
@@ -3345,12 +3345,12 @@ fn preset_column_width_fixed_correct_with_border() {
         Op::AddWindow {
             params: TestWindowParams::new(0),
         },
-        Op::SwitchPresetColumnWidth,
+        Op::SwitchPresetGroupWidth,
     ];
 
     let options = Options {
         layout: niri_config::Layout {
-            preset_column_widths: vec![PresetSize::Fixed(500)],
+            preset_group_widths: vec![PresetSize::Fixed(500)],
             ..Default::default()
         },
         ..Default::default()
@@ -3363,7 +3363,7 @@ fn preset_column_width_fixed_correct_with_border() {
     // Add border.
     let options = Options {
         layout: niri_config::Layout {
-            preset_column_widths: vec![PresetSize::Fixed(500)],
+            preset_group_widths: vec![PresetSize::Fixed(500)],
             border: niri_config::Border {
                 off: false,
                 width: 5.,
@@ -3392,17 +3392,17 @@ fn preset_column_width_reset_after_set_width() {
         Op::AddWindow {
             params: TestWindowParams::new(0),
         },
-        Op::SwitchPresetColumnWidth,
+        Op::SwitchPresetGroupWidth,
         Op::SetWindowWidth {
             id: None,
             change: SizeChange::AdjustFixed(-10),
         },
-        Op::SwitchPresetColumnWidth,
+        Op::SwitchPresetGroupWidth,
     ];
 
     let options = Options {
         layout: niri_config::Layout {
-            preset_column_widths: vec![PresetSize::Fixed(500), PresetSize::Fixed(1000)],
+            preset_group_widths: vec![PresetSize::Fixed(500), PresetSize::Fixed(1000)],
             ..Default::default()
         },
         ..Default::default()
@@ -3486,7 +3486,7 @@ fn move_column_to_workspace_down_focus_false_on_floating_window() {
             params: TestWindowParams::new(2),
         },
         Op::ToggleWindowFloating { id: None },
-        Op::MoveColumnToWorkspaceDown(false),
+        Op::MoveGroupToWorkspaceDown(false),
     ];
 
     let layout = check_ops(ops);
@@ -3509,7 +3509,7 @@ fn move_column_to_workspace_focus_false_on_floating_window() {
             params: TestWindowParams::new(2),
         },
         Op::ToggleWindowFloating { id: None },
-        Op::MoveColumnToWorkspace(1, false),
+        Op::MoveGroupToWorkspace(1, false),
     ];
 
     let layout = check_ops(ops);
@@ -3594,7 +3594,7 @@ fn move_column_to_workspace_maximize_and_fullscreen() {
         },
         Op::MaximizeWindowToEdges { id: None },
         Op::FullscreenWindow(1),
-        Op::MoveColumnToWorkspaceDown(true),
+        Op::MoveGroupToWorkspaceDown(true),
         Op::FullscreenWindow(1),
     ];
 
@@ -3647,7 +3647,7 @@ fn tabs_with_different_border() {
             },
         },
         Op::SwitchPresetWindowHeight { id: None },
-        Op::ToggleColumnTabbedDisplay,
+        Op::ToggleGroupTabbedDisplay,
         Op::AddWindow {
             params: TestWindowParams::new(3),
         },
@@ -3679,7 +3679,7 @@ fn expel_pending_left_from_fullscreen_tabbed_column() {
         Op::FullscreenWindow(1),
         Op::Communicate(1),
         // 1 is now fullscreen, view_offset_to_restore is set.
-        Op::ToggleColumnTabbedDisplay,
+        Op::ToggleGroupTabbedDisplay,
         Op::AddWindow {
             params: TestWindowParams::new(2),
         },
