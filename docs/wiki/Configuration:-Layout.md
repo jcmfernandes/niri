@@ -178,6 +178,7 @@ layout {
 
 Set the widths that the `switch-preset-column-width` action (Mod+R) toggles between.
 <sup>Since: 25.08</sup> You can use the `switch-preset-column-width-back` action (Mod+Shift+R) to toggle in reverse.
+<sup>Since: next release</sup> `preset-group-widths` is the canonical spelling of this option; `preset-column-widths` remains supported as a legacy name.
 
 `proportion` sets the width as a fraction of the output width, taking gaps into account.
 For example, you can perfectly fit four windows sized `proportion 0.25` on an output, regardless of the gaps setting.
@@ -202,6 +203,7 @@ layout {
 Set the default width of the new windows.
 
 The syntax is the same as in `preset-column-widths` above.
+<sup>Since: next release</sup> `default-group-width` is the canonical spelling of this option; `default-column-width` remains supported as a legacy name.
 
 ```kdl
 layout {
