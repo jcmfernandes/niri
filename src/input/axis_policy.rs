@@ -42,13 +42,15 @@ impl InputAxisPolicy {
         }
     }
 
-    /// Maps a layout-oriented action to the physical axis it should act on for the screenshot UI.
+    /// Maps the layout's main/cross axis to a physical axis for the screenshot UI's size actions.
     ///
-    /// In layout terms, column/window width actions and column moves act along the layout's main
-    /// axis, and window-height actions and window moves act along the cross axis. The screenshot
-    /// UI works in physical (X/Y) coordinates regardless of layout, so when the layout is vertical
-    /// we need to swap the two: actions the user thinks of as "column/main-axis" should affect the
-    /// selection vertically, and "window/cross-axis" actions should affect it horizontally.
+    /// This is used by the size actions (`SetGroupWidth`, `SetWindowWidth`, `SetWindowHeight`):
+    /// width actions act along the layout's main axis and the height action acts along the cross
+    /// axis. The screenshot UI works in physical (X/Y) coordinates regardless of layout, so when
+    /// the layout is vertical we need to swap the two: main-axis actions should affect the
+    /// selection vertically, and cross-axis actions should affect it horizontally. Directional
+    /// move actions deliberately do not use this: they already name a physical direction and
+    /// follow it directly.
     pub fn screenshot_main_axis(self) -> PhysicalAxis {
         if self.is_vertical() {
             PhysicalAxis::Height

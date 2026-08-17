@@ -1041,10 +1041,7 @@ impl State {
             }
             Action::MoveGroupLeft => {
                 if self.niri.screenshot_ui.is_open() {
-                    self.apply_screenshot_move(
-                        self.screenshot_ui_axis_policy().screenshot_main_axis(),
-                        false,
-                    );
+                    self.apply_screenshot_move(PhysicalAxis::Width, false);
                 } else {
                     self.niri.layout.move_left();
                     self.maybe_warp_cursor_to_focus();
@@ -1054,10 +1051,7 @@ impl State {
             }
             Action::MoveGroupRight => {
                 if self.niri.screenshot_ui.is_open() {
-                    self.apply_screenshot_move(
-                        self.screenshot_ui_axis_policy().screenshot_main_axis(),
-                        true,
-                    );
+                    self.apply_screenshot_move(PhysicalAxis::Width, true);
                 } else {
                     self.niri.layout.move_right();
                     self.maybe_warp_cursor_to_focus();
@@ -1067,10 +1061,7 @@ impl State {
             }
             Action::MoveGroupUp => {
                 if self.niri.screenshot_ui.is_open() {
-                    self.apply_screenshot_move(
-                        self.screenshot_ui_axis_policy().screenshot_main_axis(),
-                        false,
-                    );
+                    self.apply_screenshot_move(PhysicalAxis::Height, false);
                 } else {
                     self.niri.layout.move_group_in_direction(Direction::Up);
                     self.maybe_warp_cursor_to_focus();
@@ -1080,10 +1071,7 @@ impl State {
             }
             Action::MoveGroupDown => {
                 if self.niri.screenshot_ui.is_open() {
-                    self.apply_screenshot_move(
-                        self.screenshot_ui_axis_policy().screenshot_main_axis(),
-                        true,
-                    );
+                    self.apply_screenshot_move(PhysicalAxis::Height, true);
                 } else {
                     self.niri.layout.move_group_in_direction(Direction::Down);
                     self.maybe_warp_cursor_to_focus();
@@ -1105,10 +1093,7 @@ impl State {
             }
             Action::MoveGroupLeftOrToMonitorLeft => {
                 if self.niri.screenshot_ui.is_open() {
-                    self.apply_screenshot_move(
-                        self.screenshot_ui_axis_policy().screenshot_main_axis(),
-                        false,
-                    );
+                    self.apply_screenshot_move(PhysicalAxis::Width, false);
                 } else if let Some(output) = self.niri.output_left() {
                     if self.niri.layout.move_column_left_or_to_output(&output)
                         && !self.maybe_warp_cursor_to_focus_centered()
@@ -1128,10 +1113,7 @@ impl State {
             }
             Action::MoveGroupRightOrToMonitorRight => {
                 if self.niri.screenshot_ui.is_open() {
-                    self.apply_screenshot_move(
-                        self.screenshot_ui_axis_policy().screenshot_main_axis(),
-                        true,
-                    );
+                    self.apply_screenshot_move(PhysicalAxis::Width, true);
                 } else if let Some(output) = self.niri.output_right() {
                     if self.niri.layout.move_column_right_or_to_output(&output)
                         && !self.maybe_warp_cursor_to_focus_centered()
@@ -1151,10 +1133,7 @@ impl State {
             }
             Action::MoveGroupUpOrToMonitorUp => {
                 if self.niri.screenshot_ui.is_open() {
-                    self.apply_screenshot_move(
-                        self.screenshot_ui_axis_policy().screenshot_main_axis(),
-                        false,
-                    );
+                    self.apply_screenshot_move(PhysicalAxis::Height, false);
                 } else if let Some(output) = self.niri.output_up() {
                     if self
                         .niri
@@ -1177,10 +1156,7 @@ impl State {
             }
             Action::MoveGroupDownOrToMonitorDown => {
                 if self.niri.screenshot_ui.is_open() {
-                    self.apply_screenshot_move(
-                        self.screenshot_ui_axis_policy().screenshot_main_axis(),
-                        true,
-                    );
+                    self.apply_screenshot_move(PhysicalAxis::Height, true);
                 } else if let Some(output) = self.niri.output_down() {
                     if self
                         .niri
@@ -1203,10 +1179,7 @@ impl State {
             }
             Action::MoveWindowDown => {
                 if self.niri.screenshot_ui.is_open() {
-                    self.apply_screenshot_move(
-                        self.screenshot_ui_axis_policy().screenshot_cross_axis(),
-                        true,
-                    );
+                    self.apply_screenshot_move(PhysicalAxis::Height, true);
                 } else {
                     self.niri.layout.move_down();
                     self.maybe_warp_cursor_to_focus();
@@ -1216,10 +1189,7 @@ impl State {
             }
             Action::MoveWindowUp => {
                 if self.niri.screenshot_ui.is_open() {
-                    self.apply_screenshot_move(
-                        self.screenshot_ui_axis_policy().screenshot_cross_axis(),
-                        false,
-                    );
+                    self.apply_screenshot_move(PhysicalAxis::Height, false);
                 } else {
                     self.niri.layout.move_up();
                     self.maybe_warp_cursor_to_focus();
@@ -1229,10 +1199,7 @@ impl State {
             }
             Action::MoveWindowLeft => {
                 if self.niri.screenshot_ui.is_open() {
-                    self.apply_screenshot_move(
-                        self.screenshot_ui_axis_policy().screenshot_cross_axis(),
-                        false,
-                    );
+                    self.apply_screenshot_move(PhysicalAxis::Width, false);
                 } else {
                     self.niri.layout.move_window_in_direction(Direction::Left);
                     self.maybe_warp_cursor_to_focus();
@@ -1242,10 +1209,7 @@ impl State {
             }
             Action::MoveWindowRight => {
                 if self.niri.screenshot_ui.is_open() {
-                    self.apply_screenshot_move(
-                        self.screenshot_ui_axis_policy().screenshot_cross_axis(),
-                        true,
-                    );
+                    self.apply_screenshot_move(PhysicalAxis::Width, true);
                 } else {
                     self.niri.layout.move_window_in_direction(Direction::Right);
                     self.maybe_warp_cursor_to_focus();
@@ -1255,10 +1219,7 @@ impl State {
             }
             Action::MoveWindowDownOrToWorkspaceDown => {
                 if self.niri.screenshot_ui.is_open() {
-                    self.apply_screenshot_move(
-                        self.screenshot_ui_axis_policy().screenshot_cross_axis(),
-                        true,
-                    );
+                    self.apply_screenshot_move(PhysicalAxis::Height, true);
                 } else {
                     self.niri.layout.move_down_or_to_workspace_down();
                     self.maybe_warp_cursor_to_focus();
@@ -1268,10 +1229,7 @@ impl State {
             }
             Action::MoveWindowUpOrToWorkspaceUp => {
                 if self.niri.screenshot_ui.is_open() {
-                    self.apply_screenshot_move(
-                        self.screenshot_ui_axis_policy().screenshot_cross_axis(),
-                        false,
-                    );
+                    self.apply_screenshot_move(PhysicalAxis::Height, false);
                 } else {
                     self.niri.layout.move_up_or_to_workspace_up();
                     self.maybe_warp_cursor_to_focus();
@@ -1281,10 +1239,7 @@ impl State {
             }
             Action::MoveWindowRightOrToWorkspaceRight => {
                 if self.niri.screenshot_ui.is_open() {
-                    self.apply_screenshot_move(
-                        self.screenshot_ui_axis_policy().screenshot_cross_axis(),
-                        true,
-                    );
+                    self.apply_screenshot_move(PhysicalAxis::Width, true);
                 } else {
                     self.niri
                         .layout
@@ -1296,10 +1251,7 @@ impl State {
             }
             Action::MoveWindowLeftOrToWorkspaceLeft => {
                 if self.niri.screenshot_ui.is_open() {
-                    self.apply_screenshot_move(
-                        self.screenshot_ui_axis_policy().screenshot_cross_axis(),
-                        false,
-                    );
+                    self.apply_screenshot_move(PhysicalAxis::Width, false);
                 } else {
                     self.niri
                         .layout
