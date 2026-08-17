@@ -2649,6 +2649,71 @@ mod tests {
     }
 
     #[test]
+    fn composite_spatial_actions_parse() {
+        let cases = [
+            ("focus-group-or-monitor-up", Action::FocusGroupOrMonitorUp),
+            (
+                "focus-group-or-monitor-down",
+                Action::FocusGroupOrMonitorDown,
+            ),
+            (
+                "focus-window-or-monitor-left",
+                Action::FocusWindowOrMonitorLeft,
+            ),
+            (
+                "focus-window-or-monitor-right",
+                Action::FocusWindowOrMonitorRight,
+            ),
+            (
+                "focus-window-or-workspace-left",
+                Action::FocusWindowOrWorkspaceLeft,
+            ),
+            (
+                "focus-window-or-workspace-right",
+                Action::FocusWindowOrWorkspaceRight,
+            ),
+            (
+                "move-group-up-or-to-monitor-up",
+                Action::MoveGroupUpOrToMonitorUp,
+            ),
+            (
+                "move-group-down-or-to-monitor-down",
+                Action::MoveGroupDownOrToMonitorDown,
+            ),
+            (
+                "focus-window-right-or-group-up",
+                Action::FocusWindowRightOrGroupUp,
+            ),
+            (
+                "focus-window-right-or-group-down",
+                Action::FocusWindowRightOrGroupDown,
+            ),
+            (
+                "focus-window-left-or-group-up",
+                Action::FocusWindowLeftOrGroupUp,
+            ),
+            (
+                "focus-window-left-or-group-down",
+                Action::FocusWindowLeftOrGroupDown,
+            ),
+            ("focus-group-down-or-first", Action::FocusGroupDownOrFirst),
+            ("focus-group-up-or-last", Action::FocusGroupUpOrLast),
+            (
+                "move-window-right-or-to-workspace-right",
+                Action::MoveWindowRightOrToWorkspaceRight,
+            ),
+            (
+                "move-window-left-or-to-workspace-left",
+                Action::MoveWindowLeftOrToWorkspaceLeft,
+            ),
+        ];
+        for (name, expected) in cases {
+            let config = do_parse(&format!("binds {{ Mod+T {{ {name}; }}\n}}"));
+            assert_eq!(config.binds.0[0].action, expected, "`{name}`");
+        }
+    }
+
+    #[test]
     fn width_column_spellings_parse_like_group_actions() {
         let pairs = [
             ("switch-preset-column-width", "switch-preset-group-width"),

@@ -382,6 +382,14 @@ pub enum Action {
     FocusColumnLeftOrLast {},
     /// Focus the next group to the left, looping if at start.
     FocusGroupLeftOrLast {},
+    /// Focus the next group below, looping if at end.
+    FocusGroupDownOrFirst {},
+    /// Focus the next group above, looping if at start.
+    FocusGroupUpOrLast {},
+    /// Focus the group above.
+    FocusGroupUp {},
+    /// Focus the group below.
+    FocusGroupDown {},
     /// Focus a column by index.
     ///
     /// Legacy spelling of the same action; prefer the group name.
@@ -400,14 +408,14 @@ pub enum Action {
         #[cfg_attr(feature = "clap", arg())]
         index: usize,
     },
-    /// Focus the group above.
-    FocusGroupUp {},
-    /// Focus the group below.
-    FocusGroupDown {},
     /// Focus the window or the monitor above.
     FocusWindowOrMonitorUp {},
     /// Focus the window or the monitor below.
     FocusWindowOrMonitorDown {},
+    /// Focus the window or the monitor to the left.
+    FocusWindowOrMonitorLeft {},
+    /// Focus the window or the monitor to the right.
+    FocusWindowOrMonitorRight {},
     /// Focus the column or the monitor to the left.
     ///
     /// Legacy spelling of the same action; prefer the group name.
@@ -420,6 +428,10 @@ pub enum Action {
     FocusColumnOrMonitorRight {},
     /// Focus the group or the monitor to the right.
     FocusGroupOrMonitorRight {},
+    /// Focus the group or the monitor above.
+    FocusGroupOrMonitorUp {},
+    /// Focus the group or the monitor below.
+    FocusGroupOrMonitorDown {},
     /// Focus the window below.
     FocusWindowDown {},
     /// Focus the window above.
@@ -452,10 +464,22 @@ pub enum Action {
     FocusWindowUpOrColumnRight {},
     /// Focus the window above or the group to the right.
     FocusWindowUpOrGroupRight {},
+    /// Focus the window to the right or the group above.
+    FocusWindowRightOrGroupUp {},
+    /// Focus the window to the right or the group below.
+    FocusWindowRightOrGroupDown {},
+    /// Focus the window to the left or the group above.
+    FocusWindowLeftOrGroupUp {},
+    /// Focus the window to the left or the group below.
+    FocusWindowLeftOrGroupDown {},
     /// Focus the window or the workspace below.
     FocusWindowOrWorkspaceDown {},
     /// Focus the window or the workspace above.
     FocusWindowOrWorkspaceUp {},
+    /// Focus the window or the workspace to the left.
+    FocusWindowOrWorkspaceLeft {},
+    /// Focus the window or the workspace to the right.
+    FocusWindowOrWorkspaceRight {},
     /// Focus the topmost window.
     FocusWindowTop {},
     /// Focus the bottommost window.
@@ -522,6 +546,10 @@ pub enum Action {
     MoveGroupUp {},
     /// Move the focused group down.
     MoveGroupDown {},
+    /// Move the focused group up or to the monitor above.
+    MoveGroupUpOrToMonitorUp {},
+    /// Move the focused group down or to the monitor below.
+    MoveGroupDownOrToMonitorDown {},
     /// Move the focused window down in a column.
     MoveWindowDown {},
     /// Move the focused window up in a column.
@@ -534,6 +562,10 @@ pub enum Action {
     MoveWindowDownOrToWorkspaceDown {},
     /// Move the focused window up in a column or to the workspace above.
     MoveWindowUpOrToWorkspaceUp {},
+    /// Move the focused window to the right or to the workspace to the right.
+    MoveWindowRightOrToWorkspaceRight {},
+    /// Move the focused window to the left or to the workspace to the left.
+    MoveWindowLeftOrToWorkspaceLeft {},
     /// Consume or expel a window left.
     #[cfg_attr(
         feature = "clap",
@@ -582,13 +614,13 @@ pub enum Action {
         #[cfg_attr(feature = "clap", arg(long))]
         id: Option<u64>,
     },
-    /// Consume the window to the right into the focused column.
+    /// Consume the window after the focused column into it.
     ///
     /// Legacy spelling of the same action; prefer the group name.
     ConsumeWindowIntoColumn {},
     /// Consume the window to the right into the focused group.
     ConsumeWindowIntoGroup {},
-    /// Expel the bottom window from the focused column.
+    /// Expel the last window from the focused column.
     ///
     /// Legacy spelling of the same action; prefer the group name.
     ExpelWindowFromColumn {},
@@ -2569,34 +2601,36 @@ mod tests {
     #[cfg(feature = "clap")]
     #[test]
     fn core_spatial_actions_parse_in_cli() {
-        use clap::Parser as _;
+        run_with_big_stack(|| {
+            use clap::Parser as _;
 
-        let cases: &[&str] = &[
-            "focus-group-up",
-            "focus-group-down",
-            "move-group-up",
-            "move-group-down",
-            "focus-window-left",
-            "focus-window-right",
-            "move-window-left",
-            "move-window-right",
-            "swap-window-up",
-            "swap-window-down",
-            "consume-or-expel-window-up",
-            "consume-or-expel-window-down",
-            "focus-workspace-left",
-            "focus-workspace-right",
-            "move-workspace-left",
-            "move-workspace-right",
-            "move-group-to-workspace-left",
-            "move-group-to-workspace-right",
-            "move-window-to-workspace-left",
-            "move-window-to-workspace-right",
-        ];
-        for name in cases {
-            Action::try_parse_from(["action", name])
-                .unwrap_or_else(|e| panic!("`{name}` failed to parse: {e}"));
-        }
+            let cases: &[&str] = &[
+                "focus-group-up",
+                "focus-group-down",
+                "move-group-up",
+                "move-group-down",
+                "focus-window-left",
+                "focus-window-right",
+                "move-window-left",
+                "move-window-right",
+                "swap-window-up",
+                "swap-window-down",
+                "consume-or-expel-window-up",
+                "consume-or-expel-window-down",
+                "focus-workspace-left",
+                "focus-workspace-right",
+                "move-workspace-left",
+                "move-workspace-right",
+                "move-group-to-workspace-left",
+                "move-group-to-workspace-right",
+                "move-window-to-workspace-left",
+                "move-window-to-workspace-right",
+            ];
+            for name in cases {
+                Action::try_parse_from(["action", name])
+                    .unwrap_or_else(|e| panic!("`{name}` failed to parse: {e}"));
+            }
+        });
     }
 
     #[test]
@@ -2609,6 +2643,52 @@ mod tests {
         assert_eq!(
             format!("{b:?}"),
             format!("{:?}", Action::MoveGroupToWorkspaceLeft { focus: true })
+        );
+    }
+
+    #[cfg(feature = "clap")]
+    #[test]
+    fn composite_spatial_actions_parse_in_cli() {
+        run_with_big_stack(|| {
+            use clap::Parser as _;
+
+            let cases: &[&str] = &[
+                "focus-group-or-monitor-up",
+                "focus-group-or-monitor-down",
+                "focus-window-or-monitor-left",
+                "focus-window-or-monitor-right",
+                "focus-window-or-workspace-left",
+                "focus-window-or-workspace-right",
+                "move-group-up-or-to-monitor-up",
+                "move-group-down-or-to-monitor-down",
+                "focus-window-right-or-group-up",
+                "focus-window-right-or-group-down",
+                "focus-window-left-or-group-up",
+                "focus-window-left-or-group-down",
+                "focus-group-down-or-first",
+                "focus-group-up-or-last",
+                "move-window-right-or-to-workspace-right",
+                "move-window-left-or-to-workspace-left",
+            ];
+            for name in cases {
+                Action::try_parse_from(["action", name])
+                    .unwrap_or_else(|e| panic!("`{name}` failed to parse: {e}"));
+            }
+        });
+    }
+
+    #[test]
+    fn composite_spatial_actions_deserialize() {
+        let a: Action = serde_json::from_str(r#"{"FocusGroupOrMonitorUp":{}}"#).unwrap();
+        assert_eq!(
+            format!("{a:?}"),
+            format!("{:?}", Action::FocusGroupOrMonitorUp {})
+        );
+
+        let b: Action = serde_json::from_str(r#"{"FocusGroupDownOrFirst":{}}"#).unwrap();
+        assert_eq!(
+            format!("{b:?}"),
+            format!("{:?}", Action::FocusGroupDownOrFirst {})
         );
     }
 }

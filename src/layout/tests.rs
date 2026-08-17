@@ -469,13 +469,19 @@ enum Op {
     FocusGroupLast,
     FocusGroupRightOrFirst,
     FocusGroupLeftOrLast,
+    FocusGroupDownOrFirst,
+    FocusGroupUpOrLast,
     FocusGroup(#[proptest(strategy = "1..=5usize")] usize),
     FocusGroupUp,
     FocusGroupDown,
     FocusWindowOrMonitorUp(#[proptest(strategy = "1..=2u8")] u8),
     FocusWindowOrMonitorDown(#[proptest(strategy = "1..=2u8")] u8),
+    FocusWindowOrMonitorLeft(#[proptest(strategy = "1..=2u8")] u8),
+    FocusWindowOrMonitorRight(#[proptest(strategy = "1..=2u8")] u8),
     FocusGroupOrMonitorLeft(#[proptest(strategy = "1..=2u8")] u8),
     FocusGroupOrMonitorRight(#[proptest(strategy = "1..=2u8")] u8),
+    FocusGroupOrMonitorUp(#[proptest(strategy = "1..=2u8")] u8),
+    FocusGroupOrMonitorDown(#[proptest(strategy = "1..=2u8")] u8),
     FocusWindowDown,
     FocusWindowUp,
     FocusWindowLeft,
@@ -484,8 +490,14 @@ enum Op {
     FocusWindowDownOrGroupRight,
     FocusWindowUpOrGroupLeft,
     FocusWindowUpOrGroupRight,
+    FocusWindowRightOrGroupUp,
+    FocusWindowRightOrGroupDown,
+    FocusWindowLeftOrGroupUp,
+    FocusWindowLeftOrGroupDown,
     FocusWindowOrWorkspaceDown,
     FocusWindowOrWorkspaceUp,
+    FocusWindowOrWorkspaceLeft,
+    FocusWindowOrWorkspaceRight,
     FocusWindow(#[proptest(strategy = "1..=5usize")] usize),
     FocusWindowInGroup(#[proptest(strategy = "1..=5u8")] u8),
     FocusWindowTop,
@@ -501,12 +513,16 @@ enum Op {
     MoveGroupToIndex(#[proptest(strategy = "1..=5usize")] usize),
     MoveGroupUp,
     MoveGroupDown,
+    MoveGroupUpOrToMonitorUp(#[proptest(strategy = "1..=2u8")] u8),
+    MoveGroupDownOrToMonitorDown(#[proptest(strategy = "1..=2u8")] u8),
     MoveWindowDown,
     MoveWindowUp,
     MoveWindowLeft,
     MoveWindowRight,
     MoveWindowDownOrToWorkspaceDown,
     MoveWindowUpOrToWorkspaceUp,
+    MoveWindowRightOrToWorkspaceRight,
+    MoveWindowLeftOrToWorkspaceLeft,
     ConsumeOrExpelWindowLeft {
         #[proptest(strategy = "proptest::option::of(1..=5usize)")]
         id: Option<usize>,
@@ -1115,6 +1131,10 @@ impl Op {
             Op::FocusGroupLast => layout.focus_column_last(),
             Op::FocusGroupRightOrFirst => layout.focus_column_right_or_first(),
             Op::FocusGroupLeftOrLast => layout.focus_column_left_or_last(),
+            Op::FocusGroupDownOrFirst => {
+                layout.focus_group_wrap_in_direction(axis::Direction::Down)
+            }
+            Op::FocusGroupUpOrLast => layout.focus_group_wrap_in_direction(axis::Direction::Up),
             Op::FocusGroup(index) => layout.focus_column(index),
             Op::FocusGroupUp => layout.focus_group_in_direction(axis::Direction::Up),
             Op::FocusGroupDown => layout.focus_group_in_direction(axis::Direction::Down),
@@ -1134,6 +1154,22 @@ impl Op {
 
                 layout.focus_window_down_or_output(&output);
             }
+            Op::FocusWindowOrMonitorLeft(id) => {
+                let name = format!("output{id}");
+                let Some(output) = layout.outputs().find(|o| o.name() == name).cloned() else {
+                    return;
+                };
+
+                layout.focus_window_or_output_in_direction(axis::Direction::Left, &output);
+            }
+            Op::FocusWindowOrMonitorRight(id) => {
+                let name = format!("output{id}");
+                let Some(output) = layout.outputs().find(|o| o.name() == name).cloned() else {
+                    return;
+                };
+
+                layout.focus_window_or_output_in_direction(axis::Direction::Right, &output);
+            }
             Op::FocusGroupOrMonitorLeft(id) => {
                 let name = format!("output{id}");
                 let Some(output) = layout.outputs().find(|o| o.name() == name).cloned() else {
@@ -1150,6 +1186,22 @@ impl Op {
 
                 layout.focus_column_right_or_output(&output);
             }
+            Op::FocusGroupOrMonitorUp(id) => {
+                let name = format!("output{id}");
+                let Some(output) = layout.outputs().find(|o| o.name() == name).cloned() else {
+                    return;
+                };
+
+                layout.focus_group_or_output_in_direction(axis::Direction::Up, &output);
+            }
+            Op::FocusGroupOrMonitorDown(id) => {
+                let name = format!("output{id}");
+                let Some(output) = layout.outputs().find(|o| o.name() == name).cloned() else {
+                    return;
+                };
+
+                layout.focus_group_or_output_in_direction(axis::Direction::Down, &output);
+            }
             Op::FocusWindowDown => layout.focus_down(),
             Op::FocusWindowUp => layout.focus_up(),
             Op::FocusWindowLeft => layout.focus_window_in_direction(axis::Direction::Left),
@@ -1158,8 +1210,22 @@ impl Op {
             Op::FocusWindowDownOrGroupRight => layout.focus_down_or_right(),
             Op::FocusWindowUpOrGroupLeft => layout.focus_up_or_left(),
             Op::FocusWindowUpOrGroupRight => layout.focus_up_or_right(),
+            Op::FocusWindowRightOrGroupUp => layout
+                .focus_window_or_group_in_direction(axis::Direction::Right, axis::Direction::Up),
+            Op::FocusWindowRightOrGroupDown => layout
+                .focus_window_or_group_in_direction(axis::Direction::Right, axis::Direction::Down),
+            Op::FocusWindowLeftOrGroupUp => layout
+                .focus_window_or_group_in_direction(axis::Direction::Left, axis::Direction::Up),
+            Op::FocusWindowLeftOrGroupDown => layout
+                .focus_window_or_group_in_direction(axis::Direction::Left, axis::Direction::Down),
             Op::FocusWindowOrWorkspaceDown => layout.focus_window_or_workspace_down(),
             Op::FocusWindowOrWorkspaceUp => layout.focus_window_or_workspace_up(),
+            Op::FocusWindowOrWorkspaceLeft => {
+                layout.focus_window_or_workspace_in_direction(axis::Direction::Left)
+            }
+            Op::FocusWindowOrWorkspaceRight => {
+                layout.focus_window_or_workspace_in_direction(axis::Direction::Right)
+            }
             Op::FocusWindow(id) => layout.activate_window(&id),
             Op::FocusWindowInGroup(index) => layout.focus_window_in_column(index),
             Op::FocusWindowTop => layout.focus_window_top(),
@@ -1189,12 +1255,34 @@ impl Op {
             Op::MoveGroupToIndex(index) => layout.move_column_to_index(index),
             Op::MoveGroupUp => layout.move_group_in_direction(axis::Direction::Up),
             Op::MoveGroupDown => layout.move_group_in_direction(axis::Direction::Down),
+            Op::MoveGroupUpOrToMonitorUp(id) => {
+                let name = format!("output{id}");
+                let Some(output) = layout.outputs().find(|o| o.name() == name).cloned() else {
+                    return;
+                };
+
+                layout.move_group_or_to_output_in_direction(axis::Direction::Up, &output);
+            }
+            Op::MoveGroupDownOrToMonitorDown(id) => {
+                let name = format!("output{id}");
+                let Some(output) = layout.outputs().find(|o| o.name() == name).cloned() else {
+                    return;
+                };
+
+                layout.move_group_or_to_output_in_direction(axis::Direction::Down, &output);
+            }
             Op::MoveWindowDown => layout.move_down(),
             Op::MoveWindowUp => layout.move_up(),
             Op::MoveWindowLeft => layout.move_window_in_direction(axis::Direction::Left),
             Op::MoveWindowRight => layout.move_window_in_direction(axis::Direction::Right),
             Op::MoveWindowDownOrToWorkspaceDown => layout.move_down_or_to_workspace_down(),
             Op::MoveWindowUpOrToWorkspaceUp => layout.move_up_or_to_workspace_up(),
+            Op::MoveWindowRightOrToWorkspaceRight => {
+                layout.move_window_or_to_workspace_in_direction(axis::Direction::Right)
+            }
+            Op::MoveWindowLeftOrToWorkspaceLeft => {
+                layout.move_window_or_to_workspace_in_direction(axis::Direction::Left)
+            }
             Op::ConsumeOrExpelWindowLeft { id } => {
                 let id = id.filter(|id| layout.has_window(id));
                 layout.consume_or_expel_window_left(id.as_ref());
