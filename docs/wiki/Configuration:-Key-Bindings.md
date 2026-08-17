@@ -174,6 +174,16 @@ binds {
 Every action that you can bind is also available for programmatic invocation via `niri msg action`.
 Run `niri msg action` to get a full list of actions along with their short descriptions.
 
+<sup>Since: next release</sup> A *group* is a set of windows sharing a single span along the scrolling strip — the thing a horizontal layout displays as a column.
+Group is the canonical vocabulary: every action that operates on one has a `group` name, including the width actions (`set-group-width` and friends), and the historical `column` spellings remain supported everywhere (config, `niri msg action`, and the JSON IPC) as equivalent legacy names.
+
+```kdl
+binds {
+    Mod+Left  { focus-group-left; }  // same as focus-column-left
+    Mod+Right { focus-group-right; } // same as focus-column-right
+}
+```
+
 Here are a few actions that benefit from more explanation.
 
 #### `spawn`
