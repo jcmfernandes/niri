@@ -2244,7 +2244,7 @@ impl<W: LayoutElement> Layout<W> {
         let Some(workspace) = self.active_workspace_mut() else {
             return;
         };
-        workspace.swap_window_in_physical_direction(dir);
+        workspace.swap_window_in_direction(dir);
     }
 
     pub fn toggle_column_tabbed_display(&mut self) {

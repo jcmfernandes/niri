@@ -21,9 +21,7 @@ use smithay::wayland::shell::xdg::SurfaceCachedState;
 use super::axis::{AxisDirection, AxisEdge, AxisMap, Direction};
 use super::dims::Dims;
 use super::floating::{FloatingSpace, FloatingSpaceRenderElement};
-use super::scrolling::{
-    Column, ColumnWidth, ScrollDirection, ScrollingSpace, ScrollingSpaceRenderElement,
-};
+use super::scrolling::{Column, ColumnWidth, ScrollingSpace, ScrollingSpaceRenderElement};
 use super::shadow::Shadow;
 use super::tile::{Tile, TileRenderSnapshot};
 use super::{
@@ -1123,11 +1121,9 @@ impl<W: LayoutElement> Workspace<W> {
         }
     }
 
-    pub fn swap_window_in_physical_direction(&mut self, dir: Direction) {
-        match self.axis().main_direction(dir) {
-            Some(AxisDirection::Backward) => self.swap_window_in_direction(ScrollDirection::Left),
-            Some(AxisDirection::Forward) => self.swap_window_in_direction(ScrollDirection::Right),
-            None => (),
+    pub fn swap_window_in_direction(&mut self, dir: Direction) {
+        if let Some(d) = self.axis().main_direction(dir) {
+            self.swap_window_in_axis_direction(d)
         }
     }
 
@@ -1163,7 +1159,7 @@ impl<W: LayoutElement> Workspace<W> {
         self.scrolling.expel_from_column();
     }
 
-    pub fn swap_window_in_direction(&mut self, direction: ScrollDirection) {
+    pub fn swap_window_in_axis_direction(&mut self, direction: AxisDirection) {
         if self.floating_is_active.get() {
             return;
         }

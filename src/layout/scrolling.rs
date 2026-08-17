@@ -10,7 +10,7 @@ use ordered_float::NotNan;
 use smithay::backend::renderer::gles::GlesRenderer;
 use smithay::utils::{Logical, Point, Rectangle, Scale, Serial, Size};
 
-use super::axis::AxisMap;
+use super::axis::{AxisDirection, AxisMap};
 use super::closing_window::{ClosingWindow, ClosingWindowRenderElement};
 use super::dims::Dims;
 use super::monitor::InsertPosition;
@@ -323,16 +323,6 @@ pub enum WindowHeight {
     Fixed(f64),
     /// One of the preset cross spans (tile or window).
     Preset(usize),
-}
-
-/// Horizontal direction for an operation.
-///
-/// As operations often have a symmetrical counterpart, e.g. focus-right/focus-left, methods
-/// on `Scrolling` can sometimes be factored using the direction of the operation as a parameter.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum ScrollDirection {
-    Left,
-    Right,
 }
 
 #[derive(Debug)]
@@ -2424,7 +2414,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         new_col.tiles[0].animate_move_from(move_offset);
     }
 
-    pub fn swap_window_in_direction(&mut self, direction: ScrollDirection) {
+    pub fn swap_window_in_direction(&mut self, direction: AxisDirection) {
         if self.columns.is_empty() {
             return;
         }
@@ -2432,12 +2422,12 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         // if this is the first (resp. last column), then this operation is equivalent
         // to an `consume_or_expel_window_left` (resp. `consume_or_expel_window_right`)
         match direction {
-            ScrollDirection::Left => {
+            AxisDirection::Backward => {
                 if self.active_column_idx == 0 {
                     return;
                 }
             }
-            ScrollDirection::Right => {
+            AxisDirection::Forward => {
                 if self.active_column_idx == self.columns.len() - 1 {
                     return;
                 }
@@ -2446,8 +2436,8 @@ impl<W: LayoutElement> ScrollingSpace<W> {
 
         let source_column_idx = self.active_column_idx;
         let target_column_idx = self.active_column_idx.wrapping_add_signed(match direction {
-            ScrollDirection::Left => -1,
-            ScrollDirection::Right => 1,
+            AxisDirection::Backward => -1,
+            AxisDirection::Forward => 1,
         });
 
         // if both source and target columns contain a single tile, then the operation is equivalent
@@ -2487,7 +2477,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         {
             // special case when the source column disappears after removing its last tile
             let adjusted_target_column_idx =
-                if direction == ScrollDirection::Right && source_column_drained {
+                if direction == AxisDirection::Forward && source_column_drained {
                     target_column_idx - 1
                 } else {
                     target_column_idx

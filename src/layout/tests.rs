@@ -11,7 +11,6 @@ use proptest_derive::Arbitrary;
 use smithay::output::{Mode, PhysicalProperties, Subpixel};
 use smithay::utils::Rectangle;
 
-use super::scrolling::ScrollDirection;
 use super::*;
 
 mod animations;
@@ -397,10 +396,6 @@ fn arbitrary_parent_id() -> impl Strategy<Value = Option<usize>> {
     ]
 }
 
-fn arbitrary_scroll_direction() -> impl Strategy<Value = ScrollDirection> {
-    prop_oneof![Just(ScrollDirection::Left), Just(ScrollDirection::Right)]
-}
-
 fn arbitrary_orientation() -> impl Strategy<Value = Orientation> {
     prop_oneof![Just(Orientation::Horizontal), Just(Orientation::Vertical)]
 }
@@ -545,7 +540,8 @@ enum Op {
     },
     ConsumeWindowIntoGroup,
     ExpelWindowFromGroup,
-    SwapWindowInDirection(#[proptest(strategy = "arbitrary_scroll_direction()")] ScrollDirection),
+    SwapWindowLeft,
+    SwapWindowRight,
     SwapWindowUp,
     SwapWindowDown,
     ToggleGroupTabbedDisplay,
@@ -1305,13 +1301,8 @@ impl Op {
             }
             Op::ConsumeWindowIntoGroup => layout.consume_into_column(),
             Op::ExpelWindowFromGroup => layout.expel_from_column(),
-            Op::SwapWindowInDirection(direction) => {
-                let dir = match direction {
-                    ScrollDirection::Left => axis::Direction::Left,
-                    ScrollDirection::Right => axis::Direction::Right,
-                };
-                layout.swap_window_in_direction(dir);
-            }
+            Op::SwapWindowLeft => layout.swap_window_in_direction(axis::Direction::Left),
+            Op::SwapWindowRight => layout.swap_window_in_direction(axis::Direction::Right),
             Op::SwapWindowUp => layout.swap_window_in_direction(axis::Direction::Up),
             Op::SwapWindowDown => layout.swap_window_in_direction(axis::Direction::Down),
             Op::ToggleGroupTabbedDisplay => layout.toggle_column_tabbed_display(),
