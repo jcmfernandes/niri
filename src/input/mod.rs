@@ -1065,6 +1065,32 @@ impl State {
                     self.niri.queue_redraw_all();
                 }
             }
+            Action::MoveGroupUp => {
+                if self.niri.screenshot_ui.is_open() {
+                    self.apply_screenshot_move(
+                        self.screenshot_ui_axis_policy().screenshot_main_axis(),
+                        false,
+                    );
+                } else {
+                    self.niri.layout.move_group_in_direction(Direction::Up);
+                    self.maybe_warp_cursor_to_focus();
+                    // FIXME: granular
+                    self.niri.queue_redraw_all();
+                }
+            }
+            Action::MoveGroupDown => {
+                if self.niri.screenshot_ui.is_open() {
+                    self.apply_screenshot_move(
+                        self.screenshot_ui_axis_policy().screenshot_main_axis(),
+                        true,
+                    );
+                } else {
+                    self.niri.layout.move_group_in_direction(Direction::Down);
+                    self.maybe_warp_cursor_to_focus();
+                    // FIXME: granular
+                    self.niri.queue_redraw_all();
+                }
+            }
             Action::MoveGroupToFirst => {
                 self.niri.layout.move_column_to_first();
                 self.maybe_warp_cursor_to_focus();
@@ -1149,6 +1175,32 @@ impl State {
                     self.niri.queue_redraw_all();
                 }
             }
+            Action::MoveWindowLeft => {
+                if self.niri.screenshot_ui.is_open() {
+                    self.apply_screenshot_move(
+                        self.screenshot_ui_axis_policy().screenshot_cross_axis(),
+                        false,
+                    );
+                } else {
+                    self.niri.layout.move_window_in_direction(Direction::Left);
+                    self.maybe_warp_cursor_to_focus();
+                    // FIXME: granular
+                    self.niri.queue_redraw_all();
+                }
+            }
+            Action::MoveWindowRight => {
+                if self.niri.screenshot_ui.is_open() {
+                    self.apply_screenshot_move(
+                        self.screenshot_ui_axis_policy().screenshot_cross_axis(),
+                        true,
+                    );
+                } else {
+                    self.niri.layout.move_window_in_direction(Direction::Right);
+                    self.maybe_warp_cursor_to_focus();
+                    // FIXME: granular
+                    self.niri.queue_redraw_all();
+                }
+            }
             Action::MoveWindowDownOrToWorkspaceDown => {
                 if self.niri.screenshot_ui.is_open() {
                     self.apply_screenshot_move(
@@ -1204,6 +1256,46 @@ impl State {
                     self.niri
                         .layout
                         .consume_or_expel_window_right(Some(&window));
+                    self.maybe_warp_cursor_to_focus();
+                    // FIXME: granular
+                    self.niri.queue_redraw_all();
+                }
+            }
+            Action::ConsumeOrExpelWindowUp => {
+                self.niri
+                    .layout
+                    .consume_or_expel_window_in_direction(Direction::Up, None);
+                self.maybe_warp_cursor_to_focus();
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
+            Action::ConsumeOrExpelWindowUpById(id) => {
+                let window = self.niri.layout.windows().find(|(_, m)| m.id().get() == id);
+                let window = window.map(|(_, m)| m.window.clone());
+                if let Some(window) = window {
+                    self.niri
+                        .layout
+                        .consume_or_expel_window_in_direction(Direction::Up, Some(&window));
+                    self.maybe_warp_cursor_to_focus();
+                    // FIXME: granular
+                    self.niri.queue_redraw_all();
+                }
+            }
+            Action::ConsumeOrExpelWindowDown => {
+                self.niri
+                    .layout
+                    .consume_or_expel_window_in_direction(Direction::Down, None);
+                self.maybe_warp_cursor_to_focus();
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
+            Action::ConsumeOrExpelWindowDownById(id) => {
+                let window = self.niri.layout.windows().find(|(_, m)| m.id().get() == id);
+                let window = window.map(|(_, m)| m.window.clone());
+                if let Some(window) = window {
+                    self.niri
+                        .layout
+                        .consume_or_expel_window_in_direction(Direction::Down, Some(&window));
                     self.maybe_warp_cursor_to_focus();
                     // FIXME: granular
                     self.niri.queue_redraw_all();
@@ -1283,6 +1375,20 @@ impl State {
             }
             Action::FocusGroup(index) => {
                 self.niri.layout.focus_column(index);
+                self.maybe_warp_cursor_to_focus();
+                self.niri.layer_shell_on_demand_focus = None;
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
+            Action::FocusGroupUp => {
+                self.niri.layout.focus_group_in_direction(Direction::Up);
+                self.maybe_warp_cursor_to_focus();
+                self.niri.layer_shell_on_demand_focus = None;
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
+            Action::FocusGroupDown => {
+                self.niri.layout.focus_group_in_direction(Direction::Down);
                 self.maybe_warp_cursor_to_focus();
                 self.niri.layer_shell_on_demand_focus = None;
                 // FIXME: granular
@@ -1374,6 +1480,20 @@ impl State {
                 // FIXME: granular
                 self.niri.queue_redraw_all();
             }
+            Action::FocusWindowLeft => {
+                self.niri.layout.focus_window_in_direction(Direction::Left);
+                self.maybe_warp_cursor_to_focus();
+                self.niri.layer_shell_on_demand_focus = None;
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
+            Action::FocusWindowRight => {
+                self.niri.layout.focus_window_in_direction(Direction::Right);
+                self.maybe_warp_cursor_to_focus();
+                self.niri.layer_shell_on_demand_focus = None;
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
             Action::FocusWindowDownOrGroupLeft => {
                 self.niri.layout.focus_down_or_left();
                 self.maybe_warp_cursor_to_focus();
@@ -1452,6 +1572,22 @@ impl State {
             }
             Action::MoveWindowToWorkspaceUp(focus) => {
                 self.niri.layout.move_to_workspace_up(focus);
+                self.maybe_warp_cursor_to_focus();
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
+            Action::MoveWindowToWorkspaceLeft(focus) => {
+                self.niri
+                    .layout
+                    .move_to_workspace_in_direction(Direction::Left, focus);
+                self.maybe_warp_cursor_to_focus();
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
+            Action::MoveWindowToWorkspaceRight(focus) => {
+                self.niri
+                    .layout
+                    .move_to_workspace_in_direction(Direction::Right, focus);
                 self.maybe_warp_cursor_to_focus();
                 // FIXME: granular
                 self.niri.queue_redraw_all();
@@ -1564,6 +1700,22 @@ impl State {
                 // FIXME: granular
                 self.niri.queue_redraw_all();
             }
+            Action::MoveGroupToWorkspaceLeft(focus) => {
+                self.niri
+                    .layout
+                    .move_column_to_workspace_in_direction(Direction::Left, focus);
+                self.maybe_warp_cursor_to_focus();
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
+            Action::MoveGroupToWorkspaceRight(focus) => {
+                self.niri
+                    .layout
+                    .move_column_to_workspace_in_direction(Direction::Right, focus);
+                self.maybe_warp_cursor_to_focus();
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
             Action::MoveGroupToWorkspace(reference, focus) => {
                 if let Some((mut output, index)) =
                     self.niri.find_output_and_workspace_index(reference)
@@ -1636,6 +1788,24 @@ impl State {
                     }
                 }
             }
+            Action::FocusWorkspaceLeft => {
+                self.niri
+                    .layout
+                    .switch_workspace_in_direction(Direction::Left);
+                self.maybe_warp_cursor_to_focus();
+                self.niri.layer_shell_on_demand_focus = None;
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
+            Action::FocusWorkspaceRight => {
+                self.niri
+                    .layout
+                    .switch_workspace_in_direction(Direction::Right);
+                self.maybe_warp_cursor_to_focus();
+                self.niri.layer_shell_on_demand_focus = None;
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
             Action::FocusWorkspace(reference) => {
                 if let Some((mut output, index)) =
                     self.niri.find_output_and_workspace_index(reference)
@@ -1681,6 +1851,20 @@ impl State {
             }
             Action::MoveWorkspaceUp => {
                 self.niri.layout.move_workspace_up();
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
+            Action::MoveWorkspaceLeft => {
+                self.niri
+                    .layout
+                    .move_workspace_in_direction(Direction::Left);
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
+            Action::MoveWorkspaceRight => {
+                self.niri
+                    .layout
+                    .move_workspace_in_direction(Direction::Right);
                 // FIXME: granular
                 self.niri.queue_redraw_all();
             }
@@ -1731,6 +1915,18 @@ impl State {
             }
             Action::SwapWindowLeft => {
                 self.niri.layout.swap_window_in_direction(Direction::Left);
+                self.maybe_warp_cursor_to_focus();
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
+            Action::SwapWindowUp => {
+                self.niri.layout.swap_window_in_direction(Direction::Up);
+                self.maybe_warp_cursor_to_focus();
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
+            Action::SwapWindowDown => {
+                self.niri.layout.swap_window_in_direction(Direction::Down);
                 self.maybe_warp_cursor_to_focus();
                 // FIXME: granular
                 self.niri.queue_redraw_all();
@@ -4954,10 +5150,14 @@ fn allowed_during_screenshot(action: &Action) -> bool {
             | Action::MoveGroupLeftOrToMonitorLeft
             | Action::MoveGroupRight
             | Action::MoveGroupRightOrToMonitorRight
+            | Action::MoveGroupUp
+            | Action::MoveGroupDown
             | Action::MoveWindowUp
             | Action::MoveWindowUpOrToWorkspaceUp
             | Action::MoveWindowDown
             | Action::MoveWindowDownOrToWorkspaceDown
+            | Action::MoveWindowLeft
+            | Action::MoveWindowRight
             | Action::MoveGroupToMonitorLeft
             | Action::MoveGroupToMonitorRight
             | Action::MoveGroupToMonitorUp
@@ -4980,10 +5180,9 @@ fn allowed_during_screenshot(action: &Action) -> bool {
 
 // Mirrors the overview wheel handler's axis awareness (see
 // `InputAxisPolicy::overview_wheel_target`): the arrow keys must resolve against the workspace
-// orientation the same way, or they go dead on a vertical main axis. On a vertical axis, Left
-// and Right already have a live logical counterpart (workspace switching) and are wired up
-// below; Up and Down would need group-focus actions oriented along the vertical axis, which
-// don't exist yet, so they remain unbound there for now.
+// orientation the same way, or they go dead on a vertical main axis. On a horizontal axis the
+// arrows behave as they always have; on a vertical axis Up/Down move along the strip and
+// Left/Right cross to workspace switching instead.
 fn hardcoded_overview_bind(
     raw: Keysym,
     mods: ModifiersState,
@@ -5000,11 +5199,15 @@ fn hardcoded_overview_bind(
             repeat = false;
             Action::ToggleOverview
         }
-        Keysym::Left if policy.is_vertical() => Action::FocusWorkspaceUp,
-        Keysym::Right if policy.is_vertical() => Action::FocusWorkspaceDown,
-        Keysym::Up | Keysym::Down if policy.is_vertical() => {
-            return None;
-        }
+        // FocusWorkspaceLeft/Right, not Up/Down: switch_workspace_up/down() resolve against
+        // Direction::Up/Down on the monitor's cross axis, which is physically Left/Right on a
+        // vertical main axis, so only the Left/Right spellings are live here.
+        Keysym::Left if policy.is_vertical() => Action::FocusWorkspaceLeft,
+        Keysym::Right if policy.is_vertical() => Action::FocusWorkspaceRight,
+        // FocusGroupUp/Down are live here: the group's main axis is vertical, so Up/Down
+        // resolve against it directly.
+        Keysym::Up if policy.is_vertical() => Action::FocusGroupUp,
+        Keysym::Down if policy.is_vertical() => Action::FocusGroupDown,
         Keysym::Left => Action::FocusGroupLeft,
         Keysym::Right => Action::FocusGroupRight,
         Keysym::Up => Action::FocusWindowOrWorkspaceUp,
@@ -5817,6 +6020,29 @@ mod tests {
         );
     }
 
+    /// Whether the axis resolution that `action`'s dispatch performs at runtime (main-axis
+    /// gating for group-focus actions, cross-axis gating for workspace-focus actions) would
+    /// actually do something under `orientation`, i.e. whether the mapping is live and not a
+    /// silent dead spelling.
+    fn is_live_under(action: &Action, orientation: Orientation) -> bool {
+        let axis = crate::layout::axis::AxisMap::new(orientation);
+        match action {
+            Action::FocusGroupLeft => axis.main_direction(Direction::Left).is_some(),
+            Action::FocusGroupRight => axis.main_direction(Direction::Right).is_some(),
+            Action::FocusGroupUp => axis.main_direction(Direction::Up).is_some(),
+            Action::FocusGroupDown => axis.main_direction(Direction::Down).is_some(),
+            Action::FocusWorkspaceLeft => axis.cross_direction(Direction::Left).is_some(),
+            Action::FocusWorkspaceRight => axis.cross_direction(Direction::Right).is_some(),
+            Action::FocusWorkspaceUp => axis.cross_direction(Direction::Up).is_some(),
+            Action::FocusWorkspaceDown => axis.cross_direction(Direction::Down).is_some(),
+            // Composite window-or-workspace actions always do *something* (falling back to a
+            // workspace switch when the window move is off-axis); liveness isn't meaningful for
+            // this test's per-arrow scope.
+            Action::FocusWindowOrWorkspaceUp | Action::FocusWindowOrWorkspaceDown => true,
+            other => panic!("unexpected action in hardcoded_overview_bind test: {other:?}"),
+        }
+    }
+
     #[test]
     fn hardcoded_overview_bind_respects_orientation() {
         let horizontal = InputAxisPolicy::from_orientation(Orientation::Horizontal);
@@ -5845,17 +6071,38 @@ mod tests {
             Some(Action::FocusWindowOrWorkspaceDown)
         ));
 
-        // On a vertical main axis, Left/Right cross to workspace switching instead of going
-        // dead. Up/Down have no live vertical group-focus action yet, so they stay unbound.
+        // On a vertical main axis, Up/Down move along the strip and Left/Right cross to
+        // workspace switching instead of going dead.
         assert!(matches!(
             action_for(Keysym::Left, vertical),
-            Some(Action::FocusWorkspaceUp)
+            Some(Action::FocusWorkspaceLeft)
         ));
         assert!(matches!(
             action_for(Keysym::Right, vertical),
-            Some(Action::FocusWorkspaceDown)
+            Some(Action::FocusWorkspaceRight)
         ));
-        assert!(action_for(Keysym::Up, vertical).is_none());
-        assert!(action_for(Keysym::Down, vertical).is_none());
+        assert!(matches!(
+            action_for(Keysym::Up, vertical),
+            Some(Action::FocusGroupUp)
+        ));
+        assert!(matches!(
+            action_for(Keysym::Down, vertical),
+            Some(Action::FocusGroupDown)
+        ));
+
+        // No emitted action may be a dead spelling under the orientation it was chosen for.
+        for (policy, orientation) in [
+            (horizontal, Orientation::Horizontal),
+            (vertical, Orientation::Vertical),
+        ] {
+            for raw in [Keysym::Left, Keysym::Right, Keysym::Up, Keysym::Down] {
+                let action = action_for(raw, policy)
+                    .unwrap_or_else(|| panic!("{raw:?} under {orientation:?} has no bind"));
+                assert!(
+                    is_live_under(&action, orientation),
+                    "{action:?} emitted for {raw:?} under {orientation:?} is dead"
+                );
+            }
+        }
     }
 }

@@ -470,12 +470,16 @@ enum Op {
     FocusGroupRightOrFirst,
     FocusGroupLeftOrLast,
     FocusGroup(#[proptest(strategy = "1..=5usize")] usize),
+    FocusGroupUp,
+    FocusGroupDown,
     FocusWindowOrMonitorUp(#[proptest(strategy = "1..=2u8")] u8),
     FocusWindowOrMonitorDown(#[proptest(strategy = "1..=2u8")] u8),
     FocusGroupOrMonitorLeft(#[proptest(strategy = "1..=2u8")] u8),
     FocusGroupOrMonitorRight(#[proptest(strategy = "1..=2u8")] u8),
     FocusWindowDown,
     FocusWindowUp,
+    FocusWindowLeft,
+    FocusWindowRight,
     FocusWindowDownOrGroupLeft,
     FocusWindowDownOrGroupRight,
     FocusWindowUpOrGroupLeft,
@@ -495,8 +499,12 @@ enum Op {
     MoveGroupLeftOrToMonitorLeft(#[proptest(strategy = "1..=2u8")] u8),
     MoveGroupRightOrToMonitorRight(#[proptest(strategy = "1..=2u8")] u8),
     MoveGroupToIndex(#[proptest(strategy = "1..=5usize")] usize),
+    MoveGroupUp,
+    MoveGroupDown,
     MoveWindowDown,
     MoveWindowUp,
+    MoveWindowLeft,
+    MoveWindowRight,
     MoveWindowDownOrToWorkspaceDown,
     MoveWindowUpOrToWorkspaceUp,
     ConsumeOrExpelWindowLeft {
@@ -507,9 +515,19 @@ enum Op {
         #[proptest(strategy = "proptest::option::of(1..=5usize)")]
         id: Option<usize>,
     },
+    ConsumeOrExpelWindowUp {
+        #[proptest(strategy = "proptest::option::of(1..=5usize)")]
+        id: Option<usize>,
+    },
+    ConsumeOrExpelWindowDown {
+        #[proptest(strategy = "proptest::option::of(1..=5usize)")]
+        id: Option<usize>,
+    },
     ConsumeWindowIntoGroup,
     ExpelWindowFromGroup,
     SwapWindowInDirection(#[proptest(strategy = "arbitrary_scroll_direction()")] ScrollDirection),
+    SwapWindowUp,
+    SwapWindowDown,
     ToggleGroupTabbedDisplay,
     SetGroupDisplay(#[proptest(strategy = "arbitrary_column_display()")] ColumnDisplay),
     CenterGroup,
@@ -520,11 +538,15 @@ enum Op {
     CenterVisibleGroups,
     FocusWorkspaceDown,
     FocusWorkspaceUp,
+    FocusWorkspaceLeft,
+    FocusWorkspaceRight,
     FocusWorkspace(#[proptest(strategy = "0..=4usize")] usize),
     FocusWorkspaceAutoBackAndForth(#[proptest(strategy = "0..=4usize")] usize),
     FocusWorkspacePrevious,
     MoveWindowToWorkspaceDown(bool),
     MoveWindowToWorkspaceUp(bool),
+    MoveWindowToWorkspaceLeft(bool),
+    MoveWindowToWorkspaceRight(bool),
     MoveWindowToWorkspace {
         #[proptest(strategy = "proptest::option::of(1..=5usize)")]
         window_id: Option<usize>,
@@ -533,9 +555,13 @@ enum Op {
     },
     MoveGroupToWorkspaceDown(bool),
     MoveGroupToWorkspaceUp(bool),
+    MoveGroupToWorkspaceLeft(bool),
+    MoveGroupToWorkspaceRight(bool),
     MoveGroupToWorkspace(#[proptest(strategy = "0..=4usize")] usize, bool),
     MoveWorkspaceDown,
     MoveWorkspaceUp,
+    MoveWorkspaceLeft,
+    MoveWorkspaceRight,
     MoveWorkspaceToIndex {
         #[proptest(strategy = "proptest::option::of(1..=5usize)")]
         ws_name: Option<usize>,
@@ -1090,6 +1116,8 @@ impl Op {
             Op::FocusGroupRightOrFirst => layout.focus_column_right_or_first(),
             Op::FocusGroupLeftOrLast => layout.focus_column_left_or_last(),
             Op::FocusGroup(index) => layout.focus_column(index),
+            Op::FocusGroupUp => layout.focus_group_in_direction(axis::Direction::Up),
+            Op::FocusGroupDown => layout.focus_group_in_direction(axis::Direction::Down),
             Op::FocusWindowOrMonitorUp(id) => {
                 let name = format!("output{id}");
                 let Some(output) = layout.outputs().find(|o| o.name() == name).cloned() else {
@@ -1124,6 +1152,8 @@ impl Op {
             }
             Op::FocusWindowDown => layout.focus_down(),
             Op::FocusWindowUp => layout.focus_up(),
+            Op::FocusWindowLeft => layout.focus_window_in_direction(axis::Direction::Left),
+            Op::FocusWindowRight => layout.focus_window_in_direction(axis::Direction::Right),
             Op::FocusWindowDownOrGroupLeft => layout.focus_down_or_left(),
             Op::FocusWindowDownOrGroupRight => layout.focus_down_or_right(),
             Op::FocusWindowUpOrGroupLeft => layout.focus_up_or_left(),
@@ -1157,8 +1187,12 @@ impl Op {
                 layout.move_column_right_or_to_output(&output);
             }
             Op::MoveGroupToIndex(index) => layout.move_column_to_index(index),
+            Op::MoveGroupUp => layout.move_group_in_direction(axis::Direction::Up),
+            Op::MoveGroupDown => layout.move_group_in_direction(axis::Direction::Down),
             Op::MoveWindowDown => layout.move_down(),
             Op::MoveWindowUp => layout.move_up(),
+            Op::MoveWindowLeft => layout.move_window_in_direction(axis::Direction::Left),
+            Op::MoveWindowRight => layout.move_window_in_direction(axis::Direction::Right),
             Op::MoveWindowDownOrToWorkspaceDown => layout.move_down_or_to_workspace_down(),
             Op::MoveWindowUpOrToWorkspaceUp => layout.move_up_or_to_workspace_up(),
             Op::ConsumeOrExpelWindowLeft { id } => {
@@ -1169,6 +1203,14 @@ impl Op {
                 let id = id.filter(|id| layout.has_window(id));
                 layout.consume_or_expel_window_right(id.as_ref());
             }
+            Op::ConsumeOrExpelWindowUp { id } => {
+                let id = id.filter(|id| layout.has_window(id));
+                layout.consume_or_expel_window_in_direction(axis::Direction::Up, id.as_ref());
+            }
+            Op::ConsumeOrExpelWindowDown { id } => {
+                let id = id.filter(|id| layout.has_window(id));
+                layout.consume_or_expel_window_in_direction(axis::Direction::Down, id.as_ref());
+            }
             Op::ConsumeWindowIntoGroup => layout.consume_into_column(),
             Op::ExpelWindowFromGroup => layout.expel_from_column(),
             Op::SwapWindowInDirection(direction) => {
@@ -1178,6 +1220,8 @@ impl Op {
                 };
                 layout.swap_window_in_direction(dir);
             }
+            Op::SwapWindowUp => layout.swap_window_in_direction(axis::Direction::Up),
+            Op::SwapWindowDown => layout.swap_window_in_direction(axis::Direction::Down),
             Op::ToggleGroupTabbedDisplay => layout.toggle_column_tabbed_display(),
             Op::SetGroupDisplay(display) => layout.set_column_display(display),
             Op::CenterGroup => layout.center_column(),
@@ -1188,6 +1232,8 @@ impl Op {
             Op::CenterVisibleGroups => layout.center_visible_columns(),
             Op::FocusWorkspaceDown => layout.switch_workspace_down(),
             Op::FocusWorkspaceUp => layout.switch_workspace_up(),
+            Op::FocusWorkspaceLeft => layout.switch_workspace_in_direction(axis::Direction::Left),
+            Op::FocusWorkspaceRight => layout.switch_workspace_in_direction(axis::Direction::Right),
             Op::FocusWorkspace(idx) => layout.switch_workspace(idx),
             Op::FocusWorkspaceAutoBackAndForth(idx) => {
                 layout.switch_workspace_auto_back_and_forth(idx)
@@ -1195,6 +1241,12 @@ impl Op {
             Op::FocusWorkspacePrevious => layout.switch_workspace_previous(),
             Op::MoveWindowToWorkspaceDown(focus) => layout.move_to_workspace_down(focus),
             Op::MoveWindowToWorkspaceUp(focus) => layout.move_to_workspace_up(focus),
+            Op::MoveWindowToWorkspaceLeft(focus) => {
+                layout.move_to_workspace_in_direction(axis::Direction::Left, focus)
+            }
+            Op::MoveWindowToWorkspaceRight(focus) => {
+                layout.move_to_workspace_in_direction(axis::Direction::Right, focus)
+            }
             Op::MoveWindowToWorkspace {
                 window_id,
                 workspace_idx,
@@ -1204,6 +1256,12 @@ impl Op {
             }
             Op::MoveGroupToWorkspaceDown(focus) => layout.move_column_to_workspace_down(focus),
             Op::MoveGroupToWorkspaceUp(focus) => layout.move_column_to_workspace_up(focus),
+            Op::MoveGroupToWorkspaceLeft(focus) => {
+                layout.move_column_to_workspace_in_direction(axis::Direction::Left, focus)
+            }
+            Op::MoveGroupToWorkspaceRight(focus) => {
+                layout.move_column_to_workspace_in_direction(axis::Direction::Right, focus)
+            }
             Op::MoveGroupToWorkspace(idx, focus) => layout.move_column_to_workspace(idx, focus),
             Op::MoveWindowToOutput {
                 window_id,
@@ -1239,6 +1297,8 @@ impl Op {
             }
             Op::MoveWorkspaceDown => layout.move_workspace_down(),
             Op::MoveWorkspaceUp => layout.move_workspace_up(),
+            Op::MoveWorkspaceLeft => layout.move_workspace_in_direction(axis::Direction::Left),
+            Op::MoveWorkspaceRight => layout.move_workspace_in_direction(axis::Direction::Right),
             Op::MoveWorkspaceToIndex {
                 ws_name: Some(ws_name),
                 target_idx,

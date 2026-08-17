@@ -172,12 +172,16 @@ pub enum Action {
     FocusGroupRightOrFirst,
     FocusGroupLeftOrLast,
     FocusGroup(#[knuffel(argument)] usize),
+    FocusGroupUp,
+    FocusGroupDown,
     FocusWindowOrMonitorUp,
     FocusWindowOrMonitorDown,
     FocusGroupOrMonitorLeft,
     FocusGroupOrMonitorRight,
     FocusWindowDown,
     FocusWindowUp,
+    FocusWindowLeft,
+    FocusWindowRight,
     FocusWindowDownOrGroupLeft,
     FocusWindowDownOrGroupRight,
     FocusWindowUpOrGroupLeft,
@@ -195,8 +199,12 @@ pub enum Action {
     MoveGroupLeftOrToMonitorLeft,
     MoveGroupRightOrToMonitorRight,
     MoveGroupToIndex(#[knuffel(argument)] usize),
+    MoveGroupUp,
+    MoveGroupDown,
     MoveWindowDown,
     MoveWindowUp,
+    MoveWindowLeft,
+    MoveWindowRight,
     MoveWindowDownOrToWorkspaceDown,
     MoveWindowUpOrToWorkspaceUp,
     ConsumeOrExpelWindowLeft,
@@ -205,10 +213,18 @@ pub enum Action {
     ConsumeOrExpelWindowRight,
     #[knuffel(skip)]
     ConsumeOrExpelWindowRightById(u64),
+    ConsumeOrExpelWindowUp,
+    #[knuffel(skip)]
+    ConsumeOrExpelWindowUpById(u64),
+    ConsumeOrExpelWindowDown,
+    #[knuffel(skip)]
+    ConsumeOrExpelWindowDownById(u64),
     ConsumeWindowIntoGroup,
     ExpelWindowFromGroup,
     SwapWindowLeft,
     SwapWindowRight,
+    SwapWindowUp,
+    SwapWindowDown,
     ToggleGroupTabbedDisplay,
     SetGroupDisplay(#[knuffel(argument, str)] ColumnDisplay),
     CenterGroup,
@@ -222,10 +238,14 @@ pub enum Action {
     FocusWorkspaceUp,
     #[knuffel(skip)]
     FocusWorkspaceUpUnderMouse,
+    FocusWorkspaceLeft,
+    FocusWorkspaceRight,
     FocusWorkspace(#[knuffel(argument)] WorkspaceReference),
     FocusWorkspacePrevious,
     MoveWindowToWorkspaceDown(#[knuffel(property(name = "focus"), default = true)] bool),
     MoveWindowToWorkspaceUp(#[knuffel(property(name = "focus"), default = true)] bool),
+    MoveWindowToWorkspaceLeft(#[knuffel(property(name = "focus"), default = true)] bool),
+    MoveWindowToWorkspaceRight(#[knuffel(property(name = "focus"), default = true)] bool),
     MoveWindowToWorkspace(
         #[knuffel(argument)] WorkspaceReference,
         #[knuffel(property(name = "focus"), default = true)] bool,
@@ -238,12 +258,16 @@ pub enum Action {
     },
     MoveGroupToWorkspaceDown(#[knuffel(property(name = "focus"), default = true)] bool),
     MoveGroupToWorkspaceUp(#[knuffel(property(name = "focus"), default = true)] bool),
+    MoveGroupToWorkspaceLeft(#[knuffel(property(name = "focus"), default = true)] bool),
+    MoveGroupToWorkspaceRight(#[knuffel(property(name = "focus"), default = true)] bool),
     MoveGroupToWorkspace(
         #[knuffel(argument)] WorkspaceReference,
         #[knuffel(property(name = "focus"), default = true)] bool,
     ),
     MoveWorkspaceDown,
     MoveWorkspaceUp,
+    MoveWorkspaceLeft,
+    MoveWorkspaceRight,
     MoveWorkspaceToIndex(#[knuffel(argument)] usize),
     #[knuffel(skip)]
     MoveWorkspaceToIndexByRef {
@@ -460,6 +484,8 @@ impl From<niri_ipc::Action> for Action {
             niri_ipc::Action::FocusGroupLeftOrLast {} => Self::FocusGroupLeftOrLast,
             niri_ipc::Action::FocusColumn { index } => Self::FocusGroup(index),
             niri_ipc::Action::FocusGroup { index } => Self::FocusGroup(index),
+            niri_ipc::Action::FocusGroupUp {} => Self::FocusGroupUp,
+            niri_ipc::Action::FocusGroupDown {} => Self::FocusGroupDown,
             niri_ipc::Action::FocusWindowOrMonitorUp {} => Self::FocusWindowOrMonitorUp,
             niri_ipc::Action::FocusWindowOrMonitorDown {} => Self::FocusWindowOrMonitorDown,
             niri_ipc::Action::FocusColumnOrMonitorLeft {} => Self::FocusGroupOrMonitorLeft,
@@ -468,6 +494,8 @@ impl From<niri_ipc::Action> for Action {
             niri_ipc::Action::FocusGroupOrMonitorRight {} => Self::FocusGroupOrMonitorRight,
             niri_ipc::Action::FocusWindowDown {} => Self::FocusWindowDown,
             niri_ipc::Action::FocusWindowUp {} => Self::FocusWindowUp,
+            niri_ipc::Action::FocusWindowLeft {} => Self::FocusWindowLeft,
+            niri_ipc::Action::FocusWindowRight {} => Self::FocusWindowRight,
             niri_ipc::Action::FocusWindowDownOrColumnLeft {} => Self::FocusWindowDownOrGroupLeft,
             niri_ipc::Action::FocusWindowDownOrGroupLeft {} => Self::FocusWindowDownOrGroupLeft,
             niri_ipc::Action::FocusWindowDownOrColumnRight {} => Self::FocusWindowDownOrGroupRight,
@@ -502,8 +530,12 @@ impl From<niri_ipc::Action> for Action {
             niri_ipc::Action::MoveGroupRightOrToMonitorRight {} => {
                 Self::MoveGroupRightOrToMonitorRight
             }
+            niri_ipc::Action::MoveGroupUp {} => Self::MoveGroupUp,
+            niri_ipc::Action::MoveGroupDown {} => Self::MoveGroupDown,
             niri_ipc::Action::MoveWindowDown {} => Self::MoveWindowDown,
             niri_ipc::Action::MoveWindowUp {} => Self::MoveWindowUp,
+            niri_ipc::Action::MoveWindowLeft {} => Self::MoveWindowLeft,
+            niri_ipc::Action::MoveWindowRight {} => Self::MoveWindowRight,
             niri_ipc::Action::MoveWindowDownOrToWorkspaceDown {} => {
                 Self::MoveWindowDownOrToWorkspaceDown
             }
@@ -520,12 +552,24 @@ impl From<niri_ipc::Action> for Action {
             niri_ipc::Action::ConsumeOrExpelWindowRight { id: Some(id) } => {
                 Self::ConsumeOrExpelWindowRightById(id)
             }
+            niri_ipc::Action::ConsumeOrExpelWindowUp { id: None } => Self::ConsumeOrExpelWindowUp,
+            niri_ipc::Action::ConsumeOrExpelWindowUp { id: Some(id) } => {
+                Self::ConsumeOrExpelWindowUpById(id)
+            }
+            niri_ipc::Action::ConsumeOrExpelWindowDown { id: None } => {
+                Self::ConsumeOrExpelWindowDown
+            }
+            niri_ipc::Action::ConsumeOrExpelWindowDown { id: Some(id) } => {
+                Self::ConsumeOrExpelWindowDownById(id)
+            }
             niri_ipc::Action::ConsumeWindowIntoColumn {} => Self::ConsumeWindowIntoGroup,
             niri_ipc::Action::ConsumeWindowIntoGroup {} => Self::ConsumeWindowIntoGroup,
             niri_ipc::Action::ExpelWindowFromColumn {} => Self::ExpelWindowFromGroup,
             niri_ipc::Action::ExpelWindowFromGroup {} => Self::ExpelWindowFromGroup,
             niri_ipc::Action::SwapWindowRight {} => Self::SwapWindowRight,
             niri_ipc::Action::SwapWindowLeft {} => Self::SwapWindowLeft,
+            niri_ipc::Action::SwapWindowUp {} => Self::SwapWindowUp,
+            niri_ipc::Action::SwapWindowDown {} => Self::SwapWindowDown,
             niri_ipc::Action::ToggleColumnTabbedDisplay {} => Self::ToggleGroupTabbedDisplay,
             niri_ipc::Action::ToggleGroupTabbedDisplay {} => Self::ToggleGroupTabbedDisplay,
             niri_ipc::Action::SetColumnDisplay { display } => Self::SetGroupDisplay(display),
@@ -538,6 +582,8 @@ impl From<niri_ipc::Action> for Action {
             niri_ipc::Action::CenterVisibleGroups {} => Self::CenterVisibleGroups,
             niri_ipc::Action::FocusWorkspaceDown {} => Self::FocusWorkspaceDown,
             niri_ipc::Action::FocusWorkspaceUp {} => Self::FocusWorkspaceUp,
+            niri_ipc::Action::FocusWorkspaceLeft {} => Self::FocusWorkspaceLeft,
+            niri_ipc::Action::FocusWorkspaceRight {} => Self::FocusWorkspaceRight,
             niri_ipc::Action::FocusWorkspace { reference } => {
                 Self::FocusWorkspace(WorkspaceReference::from(reference))
             }
@@ -547,6 +593,12 @@ impl From<niri_ipc::Action> for Action {
             }
             niri_ipc::Action::MoveWindowToWorkspaceUp { focus } => {
                 Self::MoveWindowToWorkspaceUp(focus)
+            }
+            niri_ipc::Action::MoveWindowToWorkspaceLeft { focus } => {
+                Self::MoveWindowToWorkspaceLeft(focus)
+            }
+            niri_ipc::Action::MoveWindowToWorkspaceRight { focus } => {
+                Self::MoveWindowToWorkspaceRight(focus)
             }
             niri_ipc::Action::MoveWindowToWorkspace {
                 window_id: None,
@@ -580,8 +632,16 @@ impl From<niri_ipc::Action> for Action {
             niri_ipc::Action::MoveGroupToWorkspace { reference, focus } => {
                 Self::MoveGroupToWorkspace(WorkspaceReference::from(reference), focus)
             }
+            niri_ipc::Action::MoveGroupToWorkspaceLeft { focus } => {
+                Self::MoveGroupToWorkspaceLeft(focus)
+            }
+            niri_ipc::Action::MoveGroupToWorkspaceRight { focus } => {
+                Self::MoveGroupToWorkspaceRight(focus)
+            }
             niri_ipc::Action::MoveWorkspaceDown {} => Self::MoveWorkspaceDown,
             niri_ipc::Action::MoveWorkspaceUp {} => Self::MoveWorkspaceUp,
+            niri_ipc::Action::MoveWorkspaceLeft {} => Self::MoveWorkspaceLeft,
+            niri_ipc::Action::MoveWorkspaceRight {} => Self::MoveWorkspaceRight,
             niri_ipc::Action::SetWorkspaceName {
                 name,
                 workspace: None,

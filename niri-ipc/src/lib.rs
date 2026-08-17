@@ -400,6 +400,10 @@ pub enum Action {
         #[cfg_attr(feature = "clap", arg())]
         index: usize,
     },
+    /// Focus the group above.
+    FocusGroupUp {},
+    /// Focus the group below.
+    FocusGroupDown {},
     /// Focus the window or the monitor above.
     FocusWindowOrMonitorUp {},
     /// Focus the window or the monitor below.
@@ -420,6 +424,10 @@ pub enum Action {
     FocusWindowDown {},
     /// Focus the window above.
     FocusWindowUp {},
+    /// Focus the window to the left.
+    FocusWindowLeft {},
+    /// Focus the window to the right.
+    FocusWindowRight {},
     /// Focus the window below or the column to the left.
     ///
     /// Legacy spelling of the same action; prefer the group name.
@@ -510,10 +518,18 @@ pub enum Action {
         #[cfg_attr(feature = "clap", arg())]
         index: usize,
     },
+    /// Move the focused group up.
+    MoveGroupUp {},
+    /// Move the focused group down.
+    MoveGroupDown {},
     /// Move the focused window down in a column.
     MoveWindowDown {},
     /// Move the focused window up in a column.
     MoveWindowUp {},
+    /// Move the focused window to the left.
+    MoveWindowLeft {},
+    /// Move the focused window to the right.
+    MoveWindowRight {},
     /// Move the focused window down in a column or to the workspace below.
     MoveWindowDownOrToWorkspaceDown {},
     /// Move the focused window up in a column or to the workspace above.
@@ -542,6 +558,30 @@ pub enum Action {
         #[cfg_attr(feature = "clap", arg(long))]
         id: Option<u64>,
     },
+    /// Consume or expel a window up.
+    #[cfg_attr(
+        feature = "clap",
+        clap(about = "Consume or expel the focused window up")
+    )]
+    ConsumeOrExpelWindowUp {
+        /// Id of the window to consume or expel.
+        ///
+        /// If `None`, uses the focused window.
+        #[cfg_attr(feature = "clap", arg(long))]
+        id: Option<u64>,
+    },
+    /// Consume or expel a window down.
+    #[cfg_attr(
+        feature = "clap",
+        clap(about = "Consume or expel the focused window down")
+    )]
+    ConsumeOrExpelWindowDown {
+        /// Id of the window to consume or expel.
+        ///
+        /// If `None`, uses the focused window.
+        #[cfg_attr(feature = "clap", arg(long))]
+        id: Option<u64>,
+    },
     /// Consume the window to the right into the focused column.
     ///
     /// Legacy spelling of the same action; prefer the group name.
@@ -558,6 +598,10 @@ pub enum Action {
     SwapWindowRight {},
     /// Swap focused window with one to the left.
     SwapWindowLeft {},
+    /// Swap focused window with one above.
+    SwapWindowUp {},
+    /// Swap focused window with one below.
+    SwapWindowDown {},
     /// Toggle the focused column between normal and tabbed display.
     ///
     /// Legacy spelling of the same action; prefer the group name.
@@ -606,6 +650,10 @@ pub enum Action {
     FocusWorkspaceDown {},
     /// Focus the workspace above.
     FocusWorkspaceUp {},
+    /// Focus the workspace to the left.
+    FocusWorkspaceLeft {},
+    /// Focus the workspace to the right.
+    FocusWorkspaceRight {},
     /// Focus a workspace by reference (index or name).
     FocusWorkspace {
         /// Reference (index or name) of the workspace to focus.
@@ -625,6 +673,24 @@ pub enum Action {
     },
     /// Move the focused window to the workspace above.
     MoveWindowToWorkspaceUp {
+        /// Whether the focus should follow the target workspace.
+        ///
+        /// If `true` (the default), the focus will follow the window to the new workspace. If
+        /// `false`, the focus will remain on the original workspace.
+        #[cfg_attr(feature = "clap", arg(long, action = clap::ArgAction::Set, default_value_t = true))]
+        focus: bool,
+    },
+    /// Move the focused window to the workspace to the left.
+    MoveWindowToWorkspaceLeft {
+        /// Whether the focus should follow the target workspace.
+        ///
+        /// If `true` (the default), the focus will follow the window to the new workspace. If
+        /// `false`, the focus will remain on the original workspace.
+        #[cfg_attr(feature = "clap", arg(long, action = clap::ArgAction::Set, default_value_t = true))]
+        focus: bool,
+    },
+    /// Move the focused window to the workspace to the right.
+    MoveWindowToWorkspaceRight {
         /// Whether the focus should follow the target workspace.
         ///
         /// If `true` (the default), the focus will follow the window to the new workspace. If
@@ -696,6 +762,24 @@ pub enum Action {
         #[cfg_attr(feature = "clap", arg(long, action = clap::ArgAction::Set, default_value_t = true))]
         focus: bool,
     },
+    /// Move the focused group to the workspace to the left.
+    MoveGroupToWorkspaceLeft {
+        /// Whether the focus should follow the target workspace.
+        ///
+        /// If `true` (the default), the focus will follow the group to the new workspace. If
+        /// `false`, the focus will remain on the original workspace.
+        #[cfg_attr(feature = "clap", arg(long, action = clap::ArgAction::Set, default_value_t = true))]
+        focus: bool,
+    },
+    /// Move the focused group to the workspace to the right.
+    MoveGroupToWorkspaceRight {
+        /// Whether the focus should follow the target workspace.
+        ///
+        /// If `true` (the default), the focus will follow the group to the new workspace. If
+        /// `false`, the focus will remain on the original workspace.
+        #[cfg_attr(feature = "clap", arg(long, action = clap::ArgAction::Set, default_value_t = true))]
+        focus: bool,
+    },
     /// Move the focused column to a workspace by reference (index or name).
     ///
     /// Legacy spelling of the same action; prefer the group name.
@@ -728,6 +812,10 @@ pub enum Action {
     MoveWorkspaceDown {},
     /// Move the focused workspace up.
     MoveWorkspaceUp {},
+    /// Move the focused workspace to the left.
+    MoveWorkspaceLeft {},
+    /// Move the focused workspace to the right.
+    MoveWorkspaceRight {},
     /// Move a workspace to a specific index on its monitor.
     #[cfg_attr(
         feature = "clap",
@@ -2476,5 +2564,51 @@ mod tests {
                     .unwrap_or_else(|e| panic!("`{name}` failed to parse: {e}"));
             }
         });
+    }
+
+    #[cfg(feature = "clap")]
+    #[test]
+    fn core_spatial_actions_parse_in_cli() {
+        use clap::Parser as _;
+
+        let cases: &[&str] = &[
+            "focus-group-up",
+            "focus-group-down",
+            "move-group-up",
+            "move-group-down",
+            "focus-window-left",
+            "focus-window-right",
+            "move-window-left",
+            "move-window-right",
+            "swap-window-up",
+            "swap-window-down",
+            "consume-or-expel-window-up",
+            "consume-or-expel-window-down",
+            "focus-workspace-left",
+            "focus-workspace-right",
+            "move-workspace-left",
+            "move-workspace-right",
+            "move-group-to-workspace-left",
+            "move-group-to-workspace-right",
+            "move-window-to-workspace-left",
+            "move-window-to-workspace-right",
+        ];
+        for name in cases {
+            Action::try_parse_from(["action", name])
+                .unwrap_or_else(|e| panic!("`{name}` failed to parse: {e}"));
+        }
+    }
+
+    #[test]
+    fn core_spatial_actions_deserialize() {
+        let a: Action = serde_json::from_str(r#"{"FocusGroupUp":{}}"#).unwrap();
+        assert_eq!(format!("{a:?}"), format!("{:?}", Action::FocusGroupUp {}));
+
+        let b: Action =
+            serde_json::from_str(r#"{"MoveGroupToWorkspaceLeft":{"focus":true}}"#).unwrap();
+        assert_eq!(
+            format!("{b:?}"),
+            format!("{:?}", Action::MoveGroupToWorkspaceLeft { focus: true })
+        );
     }
 }

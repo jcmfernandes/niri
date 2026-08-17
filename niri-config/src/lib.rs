@@ -2599,6 +2599,56 @@ mod tests {
     }
 
     #[test]
+    fn core_spatial_actions_parse() {
+        let cases = [
+            ("focus-group-up", Action::FocusGroupUp),
+            ("focus-group-down", Action::FocusGroupDown),
+            ("move-group-up", Action::MoveGroupUp),
+            ("move-group-down", Action::MoveGroupDown),
+            ("focus-window-left", Action::FocusWindowLeft),
+            ("focus-window-right", Action::FocusWindowRight),
+            ("move-window-left", Action::MoveWindowLeft),
+            ("move-window-right", Action::MoveWindowRight),
+            ("swap-window-up", Action::SwapWindowUp),
+            ("swap-window-down", Action::SwapWindowDown),
+            ("consume-or-expel-window-up", Action::ConsumeOrExpelWindowUp),
+            (
+                "consume-or-expel-window-down",
+                Action::ConsumeOrExpelWindowDown,
+            ),
+            ("focus-workspace-left", Action::FocusWorkspaceLeft),
+            ("focus-workspace-right", Action::FocusWorkspaceRight),
+            ("move-workspace-left", Action::MoveWorkspaceLeft),
+            ("move-workspace-right", Action::MoveWorkspaceRight),
+            (
+                "move-group-to-workspace-left",
+                Action::MoveGroupToWorkspaceLeft(true),
+            ),
+            (
+                "move-group-to-workspace-right",
+                Action::MoveGroupToWorkspaceRight(true),
+            ),
+            (
+                "move-window-to-workspace-left",
+                Action::MoveWindowToWorkspaceLeft(true),
+            ),
+            (
+                "move-window-to-workspace-right",
+                Action::MoveWindowToWorkspaceRight(true),
+            ),
+        ];
+        for (name, expected) in cases {
+            let config = do_parse(&format!("binds {{ Mod+T {{ {name}; }}\n}}"));
+            assert_eq!(config.binds.0[0].action, expected, "`{name}`");
+        }
+        let config = do_parse("binds { Mod+T { move-group-to-workspace-left focus=false; }\n}");
+        assert_eq!(
+            config.binds.0[0].action,
+            Action::MoveGroupToWorkspaceLeft(false)
+        );
+    }
+
+    #[test]
     fn width_column_spellings_parse_like_group_actions() {
         let pairs = [
             ("switch-preset-column-width", "switch-preset-group-width"),
