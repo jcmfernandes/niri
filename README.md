@@ -14,13 +14,13 @@
 
 ## About
 
-Windows are arranged in columns on an infinite strip going to the right.
+Windows are arranged in groups (columns or rows) on an infinite strip going to the right or down.
 Opening a new window never causes existing windows to resize.
 
 Every monitor has its own separate window strip.
 Windows can never "overflow" onto an adjacent monitor.
 
-Workspaces are dynamic and arranged vertically.
+Workspaces are dynamic and arranged vertically on screens in the horizontal orientation, and horizontally on screens in the vertical orientation.
 Every monitor has an independent set of workspaces, and there's always one empty workspace present all the way down.
 
 The workspace arrangement is preserved across disconnecting and connecting monitors where it makes sense.
