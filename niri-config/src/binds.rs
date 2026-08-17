@@ -444,24 +444,38 @@ impl From<niri_ipc::Action> for Action {
             }
             niri_ipc::Action::FocusWindow { id } => Self::FocusWindow(id),
             niri_ipc::Action::FocusWindowInColumn { index } => Self::FocusWindowInGroup(index),
+            niri_ipc::Action::FocusWindowInGroup { index } => Self::FocusWindowInGroup(index),
             niri_ipc::Action::FocusWindowPrevious {} => Self::FocusWindowPrevious,
             niri_ipc::Action::FocusColumnLeft {} => Self::FocusGroupLeft,
+            niri_ipc::Action::FocusGroupLeft {} => Self::FocusGroupLeft,
             niri_ipc::Action::FocusColumnRight {} => Self::FocusGroupRight,
+            niri_ipc::Action::FocusGroupRight {} => Self::FocusGroupRight,
             niri_ipc::Action::FocusColumnFirst {} => Self::FocusGroupFirst,
+            niri_ipc::Action::FocusGroupFirst {} => Self::FocusGroupFirst,
             niri_ipc::Action::FocusColumnLast {} => Self::FocusGroupLast,
+            niri_ipc::Action::FocusGroupLast {} => Self::FocusGroupLast,
             niri_ipc::Action::FocusColumnRightOrFirst {} => Self::FocusGroupRightOrFirst,
+            niri_ipc::Action::FocusGroupRightOrFirst {} => Self::FocusGroupRightOrFirst,
             niri_ipc::Action::FocusColumnLeftOrLast {} => Self::FocusGroupLeftOrLast,
+            niri_ipc::Action::FocusGroupLeftOrLast {} => Self::FocusGroupLeftOrLast,
             niri_ipc::Action::FocusColumn { index } => Self::FocusGroup(index),
+            niri_ipc::Action::FocusGroup { index } => Self::FocusGroup(index),
             niri_ipc::Action::FocusWindowOrMonitorUp {} => Self::FocusWindowOrMonitorUp,
             niri_ipc::Action::FocusWindowOrMonitorDown {} => Self::FocusWindowOrMonitorDown,
             niri_ipc::Action::FocusColumnOrMonitorLeft {} => Self::FocusGroupOrMonitorLeft,
+            niri_ipc::Action::FocusGroupOrMonitorLeft {} => Self::FocusGroupOrMonitorLeft,
             niri_ipc::Action::FocusColumnOrMonitorRight {} => Self::FocusGroupOrMonitorRight,
+            niri_ipc::Action::FocusGroupOrMonitorRight {} => Self::FocusGroupOrMonitorRight,
             niri_ipc::Action::FocusWindowDown {} => Self::FocusWindowDown,
             niri_ipc::Action::FocusWindowUp {} => Self::FocusWindowUp,
             niri_ipc::Action::FocusWindowDownOrColumnLeft {} => Self::FocusWindowDownOrGroupLeft,
+            niri_ipc::Action::FocusWindowDownOrGroupLeft {} => Self::FocusWindowDownOrGroupLeft,
             niri_ipc::Action::FocusWindowDownOrColumnRight {} => Self::FocusWindowDownOrGroupRight,
+            niri_ipc::Action::FocusWindowDownOrGroupRight {} => Self::FocusWindowDownOrGroupRight,
             niri_ipc::Action::FocusWindowUpOrColumnLeft {} => Self::FocusWindowUpOrGroupLeft,
+            niri_ipc::Action::FocusWindowUpOrGroupLeft {} => Self::FocusWindowUpOrGroupLeft,
             niri_ipc::Action::FocusWindowUpOrColumnRight {} => Self::FocusWindowUpOrGroupRight,
+            niri_ipc::Action::FocusWindowUpOrGroupRight {} => Self::FocusWindowUpOrGroupRight,
             niri_ipc::Action::FocusWindowOrWorkspaceDown {} => Self::FocusWindowOrWorkspaceDown,
             niri_ipc::Action::FocusWindowOrWorkspaceUp {} => Self::FocusWindowOrWorkspaceUp,
             niri_ipc::Action::FocusWindowTop {} => Self::FocusWindowTop,
@@ -469,14 +483,23 @@ impl From<niri_ipc::Action> for Action {
             niri_ipc::Action::FocusWindowDownOrTop {} => Self::FocusWindowDownOrTop,
             niri_ipc::Action::FocusWindowUpOrBottom {} => Self::FocusWindowUpOrBottom,
             niri_ipc::Action::MoveColumnLeft {} => Self::MoveGroupLeft,
+            niri_ipc::Action::MoveGroupLeft {} => Self::MoveGroupLeft,
             niri_ipc::Action::MoveColumnRight {} => Self::MoveGroupRight,
+            niri_ipc::Action::MoveGroupRight {} => Self::MoveGroupRight,
             niri_ipc::Action::MoveColumnToFirst {} => Self::MoveGroupToFirst,
+            niri_ipc::Action::MoveGroupToFirst {} => Self::MoveGroupToFirst,
             niri_ipc::Action::MoveColumnToLast {} => Self::MoveGroupToLast,
+            niri_ipc::Action::MoveGroupToLast {} => Self::MoveGroupToLast,
             niri_ipc::Action::MoveColumnToIndex { index } => Self::MoveGroupToIndex(index),
+            niri_ipc::Action::MoveGroupToIndex { index } => Self::MoveGroupToIndex(index),
             niri_ipc::Action::MoveColumnLeftOrToMonitorLeft {} => {
                 Self::MoveGroupLeftOrToMonitorLeft
             }
+            niri_ipc::Action::MoveGroupLeftOrToMonitorLeft {} => Self::MoveGroupLeftOrToMonitorLeft,
             niri_ipc::Action::MoveColumnRightOrToMonitorRight {} => {
+                Self::MoveGroupRightOrToMonitorRight
+            }
+            niri_ipc::Action::MoveGroupRightOrToMonitorRight {} => {
                 Self::MoveGroupRightOrToMonitorRight
             }
             niri_ipc::Action::MoveWindowDown {} => Self::MoveWindowDown,
@@ -498,15 +521,21 @@ impl From<niri_ipc::Action> for Action {
                 Self::ConsumeOrExpelWindowRightById(id)
             }
             niri_ipc::Action::ConsumeWindowIntoColumn {} => Self::ConsumeWindowIntoGroup,
+            niri_ipc::Action::ConsumeWindowIntoGroup {} => Self::ConsumeWindowIntoGroup,
             niri_ipc::Action::ExpelWindowFromColumn {} => Self::ExpelWindowFromGroup,
+            niri_ipc::Action::ExpelWindowFromGroup {} => Self::ExpelWindowFromGroup,
             niri_ipc::Action::SwapWindowRight {} => Self::SwapWindowRight,
             niri_ipc::Action::SwapWindowLeft {} => Self::SwapWindowLeft,
             niri_ipc::Action::ToggleColumnTabbedDisplay {} => Self::ToggleGroupTabbedDisplay,
+            niri_ipc::Action::ToggleGroupTabbedDisplay {} => Self::ToggleGroupTabbedDisplay,
             niri_ipc::Action::SetColumnDisplay { display } => Self::SetGroupDisplay(display),
+            niri_ipc::Action::SetGroupDisplay { display } => Self::SetGroupDisplay(display),
             niri_ipc::Action::CenterColumn {} => Self::CenterGroup,
+            niri_ipc::Action::CenterGroup {} => Self::CenterGroup,
             niri_ipc::Action::CenterWindow { id: None } => Self::CenterWindow,
             niri_ipc::Action::CenterWindow { id: Some(id) } => Self::CenterWindowById(id),
             niri_ipc::Action::CenterVisibleColumns {} => Self::CenterVisibleGroups,
+            niri_ipc::Action::CenterVisibleGroups {} => Self::CenterVisibleGroups,
             niri_ipc::Action::FocusWorkspaceDown {} => Self::FocusWorkspaceDown,
             niri_ipc::Action::FocusWorkspaceUp {} => Self::FocusWorkspaceUp,
             niri_ipc::Action::FocusWorkspace { reference } => {
@@ -536,10 +565,19 @@ impl From<niri_ipc::Action> for Action {
             niri_ipc::Action::MoveColumnToWorkspaceDown { focus } => {
                 Self::MoveGroupToWorkspaceDown(focus)
             }
+            niri_ipc::Action::MoveGroupToWorkspaceDown { focus } => {
+                Self::MoveGroupToWorkspaceDown(focus)
+            }
             niri_ipc::Action::MoveColumnToWorkspaceUp { focus } => {
                 Self::MoveGroupToWorkspaceUp(focus)
             }
+            niri_ipc::Action::MoveGroupToWorkspaceUp { focus } => {
+                Self::MoveGroupToWorkspaceUp(focus)
+            }
             niri_ipc::Action::MoveColumnToWorkspace { reference, focus } => {
+                Self::MoveGroupToWorkspace(WorkspaceReference::from(reference), focus)
+            }
+            niri_ipc::Action::MoveGroupToWorkspace { reference, focus } => {
                 Self::MoveGroupToWorkspace(WorkspaceReference::from(reference), focus)
             }
             niri_ipc::Action::MoveWorkspaceDown {} => Self::MoveWorkspaceDown,
@@ -580,12 +618,19 @@ impl From<niri_ipc::Action> for Action {
                 output,
             } => Self::MoveWindowToMonitorById { id, output },
             niri_ipc::Action::MoveColumnToMonitorLeft {} => Self::MoveGroupToMonitorLeft,
+            niri_ipc::Action::MoveGroupToMonitorLeft {} => Self::MoveGroupToMonitorLeft,
             niri_ipc::Action::MoveColumnToMonitorRight {} => Self::MoveGroupToMonitorRight,
+            niri_ipc::Action::MoveGroupToMonitorRight {} => Self::MoveGroupToMonitorRight,
             niri_ipc::Action::MoveColumnToMonitorDown {} => Self::MoveGroupToMonitorDown,
+            niri_ipc::Action::MoveGroupToMonitorDown {} => Self::MoveGroupToMonitorDown,
             niri_ipc::Action::MoveColumnToMonitorUp {} => Self::MoveGroupToMonitorUp,
+            niri_ipc::Action::MoveGroupToMonitorUp {} => Self::MoveGroupToMonitorUp,
             niri_ipc::Action::MoveColumnToMonitorPrevious {} => Self::MoveGroupToMonitorPrevious,
+            niri_ipc::Action::MoveGroupToMonitorPrevious {} => Self::MoveGroupToMonitorPrevious,
             niri_ipc::Action::MoveColumnToMonitorNext {} => Self::MoveGroupToMonitorNext,
+            niri_ipc::Action::MoveGroupToMonitorNext {} => Self::MoveGroupToMonitorNext,
             niri_ipc::Action::MoveColumnToMonitor { output } => Self::MoveGroupToMonitor(output),
+            niri_ipc::Action::MoveGroupToMonitor { output } => Self::MoveGroupToMonitor(output),
             niri_ipc::Action::SetWindowWidth { id: None, change } => Self::SetWindowWidth(change),
             niri_ipc::Action::SetWindowWidth {
                 id: Some(id),
@@ -599,7 +644,9 @@ impl From<niri_ipc::Action> for Action {
             niri_ipc::Action::ResetWindowHeight { id: None } => Self::ResetWindowHeight,
             niri_ipc::Action::ResetWindowHeight { id: Some(id) } => Self::ResetWindowHeightById(id),
             niri_ipc::Action::SwitchPresetColumnWidth {} => Self::SwitchPresetGroupWidth,
+            niri_ipc::Action::SwitchPresetGroupWidth {} => Self::SwitchPresetGroupWidth,
             niri_ipc::Action::SwitchPresetColumnWidthBack {} => Self::SwitchPresetGroupWidthBack,
+            niri_ipc::Action::SwitchPresetGroupWidthBack {} => Self::SwitchPresetGroupWidthBack,
             niri_ipc::Action::SwitchPresetWindowWidth { id: None } => Self::SwitchPresetWindowWidth,
             niri_ipc::Action::SwitchPresetWindowWidthBack { id: None } => {
                 Self::SwitchPresetWindowWidthBack
@@ -623,12 +670,15 @@ impl From<niri_ipc::Action> for Action {
                 Self::SwitchPresetWindowHeightBackById(id)
             }
             niri_ipc::Action::MaximizeColumn {} => Self::MaximizeGroup,
+            niri_ipc::Action::MaximizeGroup {} => Self::MaximizeGroup,
             niri_ipc::Action::MaximizeWindowToEdges { id: None } => Self::MaximizeWindowToEdges,
             niri_ipc::Action::MaximizeWindowToEdges { id: Some(id) } => {
                 Self::MaximizeWindowToEdgesById(id)
             }
             niri_ipc::Action::SetColumnWidth { change } => Self::SetGroupWidth(change),
+            niri_ipc::Action::SetGroupWidth { change } => Self::SetGroupWidth(change),
             niri_ipc::Action::ExpandColumnToAvailableWidth {} => Self::ExpandGroupToAvailableWidth,
+            niri_ipc::Action::ExpandGroupToAvailableWidth {} => Self::ExpandGroupToAvailableWidth,
             niri_ipc::Action::SwitchLayout { layout } => Self::SwitchLayout(layout),
             niri_ipc::Action::ShowHotkeyOverlay {} => Self::ShowHotkeyOverlay,
             niri_ipc::Action::MoveWorkspaceToMonitorLeft {} => Self::MoveWorkspaceToMonitorLeft,
@@ -1167,5 +1217,158 @@ mod tests {
                 modifiers: Modifiers::ISO_LEVEL5_SHIFT
             },
         );
+    }
+
+    #[test]
+    fn legacy_and_group_ipc_variants_collapse() {
+        use niri_ipc::Action as Ipc;
+        let pairs: Vec<(Ipc, Ipc)> = vec![
+            (Ipc::FocusColumnLeft {}, Ipc::FocusGroupLeft {}),
+            (Ipc::FocusColumnRight {}, Ipc::FocusGroupRight {}),
+            (Ipc::FocusColumnFirst {}, Ipc::FocusGroupFirst {}),
+            (Ipc::FocusColumnLast {}, Ipc::FocusGroupLast {}),
+            (
+                Ipc::FocusColumnRightOrFirst {},
+                Ipc::FocusGroupRightOrFirst {},
+            ),
+            (Ipc::FocusColumnLeftOrLast {}, Ipc::FocusGroupLeftOrLast {}),
+            (Ipc::FocusColumn { index: 3 }, Ipc::FocusGroup { index: 3 }),
+            (
+                Ipc::FocusWindowInColumn { index: 2 },
+                Ipc::FocusWindowInGroup { index: 2 },
+            ),
+            (
+                Ipc::FocusColumnOrMonitorLeft {},
+                Ipc::FocusGroupOrMonitorLeft {},
+            ),
+            (
+                Ipc::FocusColumnOrMonitorRight {},
+                Ipc::FocusGroupOrMonitorRight {},
+            ),
+            (
+                Ipc::FocusWindowDownOrColumnLeft {},
+                Ipc::FocusWindowDownOrGroupLeft {},
+            ),
+            (
+                Ipc::FocusWindowDownOrColumnRight {},
+                Ipc::FocusWindowDownOrGroupRight {},
+            ),
+            (
+                Ipc::FocusWindowUpOrColumnLeft {},
+                Ipc::FocusWindowUpOrGroupLeft {},
+            ),
+            (
+                Ipc::FocusWindowUpOrColumnRight {},
+                Ipc::FocusWindowUpOrGroupRight {},
+            ),
+            (Ipc::MoveColumnLeft {}, Ipc::MoveGroupLeft {}),
+            (Ipc::MoveColumnRight {}, Ipc::MoveGroupRight {}),
+            (Ipc::MoveColumnToFirst {}, Ipc::MoveGroupToFirst {}),
+            (Ipc::MoveColumnToLast {}, Ipc::MoveGroupToLast {}),
+            (
+                Ipc::MoveColumnLeftOrToMonitorLeft {},
+                Ipc::MoveGroupLeftOrToMonitorLeft {},
+            ),
+            (
+                Ipc::MoveColumnRightOrToMonitorRight {},
+                Ipc::MoveGroupRightOrToMonitorRight {},
+            ),
+            (
+                Ipc::MoveColumnToIndex { index: 3 },
+                Ipc::MoveGroupToIndex { index: 3 },
+            ),
+            (
+                Ipc::ConsumeWindowIntoColumn {},
+                Ipc::ConsumeWindowIntoGroup {},
+            ),
+            (Ipc::ExpelWindowFromColumn {}, Ipc::ExpelWindowFromGroup {}),
+            (
+                Ipc::ToggleColumnTabbedDisplay {},
+                Ipc::ToggleGroupTabbedDisplay {},
+            ),
+            (
+                Ipc::SetColumnDisplay {
+                    display: niri_ipc::ColumnDisplay::Tabbed,
+                },
+                Ipc::SetGroupDisplay {
+                    display: niri_ipc::ColumnDisplay::Tabbed,
+                },
+            ),
+            (Ipc::CenterColumn {}, Ipc::CenterGroup {}),
+            (Ipc::CenterVisibleColumns {}, Ipc::CenterVisibleGroups {}),
+            (
+                Ipc::MoveColumnToWorkspaceDown { focus: true },
+                Ipc::MoveGroupToWorkspaceDown { focus: true },
+            ),
+            (
+                Ipc::MoveColumnToWorkspaceUp { focus: false },
+                Ipc::MoveGroupToWorkspaceUp { focus: false },
+            ),
+            (
+                Ipc::MoveColumnToWorkspace {
+                    reference: niri_ipc::WorkspaceReferenceArg::Index(1),
+                    focus: true,
+                },
+                Ipc::MoveGroupToWorkspace {
+                    reference: niri_ipc::WorkspaceReferenceArg::Index(1),
+                    focus: true,
+                },
+            ),
+            (
+                Ipc::MoveColumnToMonitorLeft {},
+                Ipc::MoveGroupToMonitorLeft {},
+            ),
+            (
+                Ipc::MoveColumnToMonitorRight {},
+                Ipc::MoveGroupToMonitorRight {},
+            ),
+            (
+                Ipc::MoveColumnToMonitorDown {},
+                Ipc::MoveGroupToMonitorDown {},
+            ),
+            (Ipc::MoveColumnToMonitorUp {}, Ipc::MoveGroupToMonitorUp {}),
+            (
+                Ipc::MoveColumnToMonitorPrevious {},
+                Ipc::MoveGroupToMonitorPrevious {},
+            ),
+            (
+                Ipc::MoveColumnToMonitorNext {},
+                Ipc::MoveGroupToMonitorNext {},
+            ),
+            (
+                Ipc::MoveColumnToMonitor {
+                    output: "DP-1".to_owned(),
+                },
+                Ipc::MoveGroupToMonitor {
+                    output: "DP-1".to_owned(),
+                },
+            ),
+            (Ipc::MaximizeColumn {}, Ipc::MaximizeGroup {}),
+            (
+                Ipc::SwitchPresetColumnWidth {},
+                Ipc::SwitchPresetGroupWidth {},
+            ),
+            (
+                Ipc::SwitchPresetColumnWidthBack {},
+                Ipc::SwitchPresetGroupWidthBack {},
+            ),
+            (
+                Ipc::SetColumnWidth {
+                    change: niri_ipc::SizeChange::SetProportion(50.0),
+                },
+                Ipc::SetGroupWidth {
+                    change: niri_ipc::SizeChange::SetProportion(50.0),
+                },
+            ),
+            (
+                Ipc::ExpandColumnToAvailableWidth {},
+                Ipc::ExpandGroupToAvailableWidth {},
+            ),
+        ];
+        for (legacy, group) in pairs {
+            let a = Action::from(legacy.clone());
+            let b = Action::from(group.clone());
+            assert_eq!(a, b, "{legacy:?} and {group:?} must collapse to one action");
+        }
     }
 }
