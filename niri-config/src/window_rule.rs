@@ -16,8 +16,11 @@ pub struct WindowRule {
     pub excludes: Vec<Match>,
 
     // Rules applied at initial configure.
+    /// Legacy spelling of `default-group-width`; the group spelling wins if both are set.
     #[knuffel(child)]
     pub default_column_width: Option<DefaultPresetSize>,
+    #[knuffel(child)]
+    pub default_group_width: Option<DefaultPresetSize>,
     #[knuffel(child)]
     pub default_window_height: Option<DefaultPresetSize>,
     #[knuffel(child, unwrap(argument))]

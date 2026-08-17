@@ -216,6 +216,9 @@ impl ResolvedWindowRules {
                 if let Some(x) = rule.default_column_width {
                     resolved.default_width = Some(x.0);
                 }
+                if let Some(x) = rule.default_group_width {
+                    resolved.default_width = Some(x.0);
+                }
 
                 if let Some(x) = rule.default_window_height {
                     resolved.default_height = Some(x.0);
