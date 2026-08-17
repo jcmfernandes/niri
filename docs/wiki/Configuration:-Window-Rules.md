@@ -349,6 +349,8 @@ Set the default width for the new window.
 
 This works for floating windows too, despite the word "column" in the name.
 
+<sup>Since: next release</sup> `default-group-width` is the canonical spelling of this property; `default-column-width` remains supported as a legacy name, and the group spelling wins if both are set.
+
 ```kdl
 // Give Blender and GIMP some guaranteed width on opening.
 window-rule {
