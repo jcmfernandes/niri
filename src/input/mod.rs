@@ -1754,6 +1754,52 @@ impl State {
                 // FIXME: granular
                 self.niri.queue_redraw_all();
             }
+            Action::FocusWindowFirst => {
+                self.niri.layout.focus_window_first();
+                self.maybe_warp_cursor_to_focus();
+                self.niri.layer_shell_on_demand_focus = None;
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
+            Action::FocusWindowLast => {
+                self.niri.layout.focus_window_last();
+                self.maybe_warp_cursor_to_focus();
+                self.niri.layer_shell_on_demand_focus = None;
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
+            Action::FocusWindowLeftmost => {
+                self.niri
+                    .layout
+                    .focus_window_edge_in_direction(Direction::Left);
+                self.maybe_warp_cursor_to_focus();
+                self.niri.layer_shell_on_demand_focus = None;
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
+            Action::FocusWindowRightmost => {
+                self.niri
+                    .layout
+                    .focus_window_edge_in_direction(Direction::Right);
+                self.maybe_warp_cursor_to_focus();
+                self.niri.layer_shell_on_demand_focus = None;
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
+            Action::FocusWindowRightOrLeftmost => {
+                self.niri.layout.focus_window_right_or_leftmost();
+                self.maybe_warp_cursor_to_focus();
+                self.niri.layer_shell_on_demand_focus = None;
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
+            Action::FocusWindowLeftOrRightmost => {
+                self.niri.layout.focus_window_left_or_rightmost();
+                self.maybe_warp_cursor_to_focus();
+                self.niri.layer_shell_on_demand_focus = None;
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
             Action::MoveWindowToWorkspaceDown(focus) => {
                 self.niri.layout.move_to_workspace_down(focus);
                 self.maybe_warp_cursor_to_focus();
