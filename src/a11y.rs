@@ -267,7 +267,18 @@ impl Niri {
             return;
         }
 
-        self.a11y_announce(self.hotkey_overlay.a11y_text());
+        // The overlay is normally rendered per output, each following its own orientation (see
+        // HotkeyOverlay::render); the announcement isn't tied to one, so it follows the active
+        // output instead.
+        let orientation = self
+            .layout
+            .active_output()
+            .cloned()
+            .and_then(|output| self.layout.monitor_for_output(&output))
+            .map(|mon| mon.orientation())
+            .unwrap_or_default();
+
+        self.a11y_announce(self.hotkey_overlay.a11y_text(orientation));
     }
 
     fn a11y_focus(&self) -> NodeId {

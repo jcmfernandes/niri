@@ -377,6 +377,16 @@ impl<W: LayoutElement> Monitor<W> {
         &self.workspaces[self.active_workspace_idx]
     }
 
+    /// This monitor's own orientation, as opposed to any one workspace's, i.e. the same source
+    /// [`Self::overview_axis`] uses.
+    ///
+    /// Exposed for UI surfaces outside the layout module (like the hotkey overlay) that need a
+    /// single, monitor-wide orientation to key their own per-output orientation-aware content
+    /// on, without reaching into a specific workspace.
+    pub fn orientation(&self) -> Orientation {
+        self.options.layout.orientation
+    }
+
     /// Axis map that this monitor uses to arrange its workspaces relative to each other; they are
     /// stacked along its cross axis.
     ///
