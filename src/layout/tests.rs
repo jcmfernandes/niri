@@ -401,6 +401,10 @@ fn arbitrary_scroll_direction() -> impl Strategy<Value = ScrollDirection> {
     prop_oneof![Just(ScrollDirection::Left), Just(ScrollDirection::Right)]
 }
 
+fn arbitrary_orientation() -> impl Strategy<Value = Orientation> {
+    prop_oneof![Just(Orientation::Horizontal), Just(Orientation::Vertical)]
+}
+
 fn arbitrary_column_display() -> impl Strategy<Value = ColumnDisplay> {
     prop_oneof![Just(ColumnDisplay::Normal), Just(ColumnDisplay::Tabbed)]
 }
@@ -5149,6 +5153,7 @@ prop_compose! {
         center_focused_column in prop::option::of(arbitrary_center_focused_column()),
         always_center_single_column in prop::option::of(any::<bool>().prop_map(Flag)),
         empty_workspace_above_first in prop::option::of(any::<bool>().prop_map(Flag)),
+        orientation in prop::option::of(arbitrary_orientation()),
     ) -> niri_config::LayoutPart {
         niri_config::LayoutPart {
             gaps,
@@ -5160,6 +5165,7 @@ prop_compose! {
             border,
             shadow,
             tab_indicator,
+            orientation,
             ..Default::default()
         }
     }
