@@ -122,8 +122,8 @@ layout {
 
 Sets the main axis of the scrolling layout.
 
-- `"horizontal"` (the default): columns are laid out from left to right, and the view scrolls horizontally.
-- `"vertical"`: columns are laid out from top to bottom, and the view scrolls vertically.
+- `"horizontal"` (the default): groups are laid out from left to right, and the view scrolls horizontally.
+- `"vertical"`: groups are laid out from top to bottom, and the view scrolls vertically.
 
 This setting also changes what niri considers the main axis for size actions and presets:
 
@@ -135,6 +135,20 @@ So in the default horizontal layout these still correspond to physical width and
 ```kdl
 layout {
     orientation "vertical"
+}
+```
+
+On a vertical strip, groups of windows stack top-to-bottom and the view scrolls vertically; windows within a group sit side by side; workspaces sit side by side and switch horizontally.
+Directional actions are physical and act on whatever lies in that direction: for example `focus-group-down` focuses the next group on a vertical strip and does nothing on a horizontal one, where `focus-group-right` does that job.
+
+This is useful together with a per-output override to match an output rotated 90 or 270 degrees:
+
+```kdl
+output "DP-2" {
+    transform "270"
+    layout {
+        orientation "vertical"
+    }
 }
 ```
 

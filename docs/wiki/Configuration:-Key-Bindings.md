@@ -186,6 +186,12 @@ binds {
 }
 ```
 
+<sup>Since: next release</sup> Directional actions name a physical direction and act on what lies that way.
+On a vertical-orientation output, the horizontal group spellings (`focus-group-left`, `focus-group-right`, …) do nothing, and the vertical group spellings (`focus-group-up`, `focus-group-down`, …) apply instead.
+Workspaces run the other way: the vertical workspace spellings (`focus-workspace-up`, `focus-workspace-down`, …) do nothing, and the horizontal workspace spellings (`focus-workspace-left`, `focus-workspace-right`, …) apply instead.
+Windows within a group follow the cross axis, so on a vertical-orientation output `focus-window-up` and `focus-window-down` do nothing, and `focus-window-left` and `focus-window-right` apply instead.
+`focus-window-first` and `focus-window-last`, like `focus-group-first` and `focus-group-last`, are orientation-neutral and work the same on every output.
+
 Here are a few actions that benefit from more explanation.
 
 #### `spawn`

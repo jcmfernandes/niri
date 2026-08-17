@@ -124,7 +124,12 @@ layout {
     // Orientation of the scrolling layout:
     // - "horizontal", default behavior: columns are laid out left-to-right.
     // - "vertical", columns are laid out top-to-bottom.
-    // Column width actions work on the main axis; window height actions work on the cross axis.
+    // Column ("group") width actions act on horizontal-orientation strips only; the mirroring
+    // group height actions act on vertical-orientation strips only.
+    // The directional binds in this file use the horizontal spellings (e.g. focus-column-left)
+    // and are inert on a vertical orientation; see the key bindings wiki page for the vertical
+    // spellings. The width binds below (Mod+R, Mod+Shift+R, Mod+Ctrl+F, Mod+Minus, Mod+Equal)
+    // are inert on a vertical orientation too.
     // orientation "horizontal"
 
     // You can customize the widths that "switch-preset-column-width" (Mod+R) toggles between.
@@ -144,6 +149,8 @@ layout {
     // preset-window-heights { }
 
     // You can change the default width of the new windows.
+    // default-column-width applies to horizontal-orientation strips; default-group-height
+    // (introduced later) applies to vertical-orientation ones.
     default-column-width { proportion 0.5; }
     // If you leave the brackets empty, the windows themselves will decide their initial width.
     // default-column-width {}
