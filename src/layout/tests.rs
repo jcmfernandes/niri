@@ -11,8 +11,8 @@ use proptest_derive::Arbitrary;
 use smithay::output::{Mode, PhysicalProperties, Subpixel};
 use smithay::utils::Rectangle;
 
+use super::scrolling::ScrollDirection;
 use super::*;
-use crate::layout::scrolling::ScrollDirection;
 
 mod animations;
 mod fullscreen;
@@ -1661,6 +1661,17 @@ fn check_ops_with_options(
     layout
 }
 
+/// The floating render position of the window with the given id, in workspace-view space.
+fn floating_pos_of_window(layout: &Layout<TestWindow>, id: usize) -> (f64, f64) {
+    let mut pos = None;
+    layout.with_windows(|win, _, _, layout| {
+        if *win.id() == id {
+            pos = layout.tile_pos_in_workspace_view;
+        }
+    });
+    pos.unwrap()
+}
+
 #[test]
 fn vertical_orientation_places_columns_vertically() {
     let mut options = Options::default();
@@ -1913,8 +1924,10 @@ fn spatial_window_focus() {
     vertical_options.layout.orientation = Orientation::Vertical;
 
     let mut layout = check_ops_with_options(vertical_options, ops.clone());
+    merge_into_single_column(layout.active_workspace_mut().unwrap());
+    layout.verify_invariants();
+
     let ws = layout.active_workspace_mut().unwrap();
-    merge_into_single_column(ws);
     assert_eq!(ws.scrolling().active_column_idx(), 0);
 
     assert!(!ws.focus_window_in_direction(axis::Direction::Up));
@@ -1929,8 +1942,10 @@ fn spatial_window_focus() {
     horizontal_options.layout.orientation = Orientation::Horizontal;
 
     let mut layout = check_ops_with_options(horizontal_options, ops);
+    merge_into_single_column(layout.active_workspace_mut().unwrap());
+    layout.verify_invariants();
+
     let ws = layout.active_workspace_mut().unwrap();
-    merge_into_single_column(ws);
     assert_eq!(ws.scrolling().active_column_idx(), 0);
 
     assert!(!ws.focus_window_in_direction(axis::Direction::Left));
@@ -2066,41 +2081,10 @@ fn vertical_spatial_flip_for_existing_actions() {
         "focus_right must not move on vertical"
     );
 
-    // focus_up()/focus_down() are window (cross-axis) actions. Up/Down are off the vertical
-    // cross axis (Left/Right), so they are dead too -- not because there's nowhere to go
-    // within the single-window column, but because the direction never resolves at all.
-    let active_before = *layout
-        .active_workspace()
-        .unwrap()
-        .active_window()
-        .unwrap()
-        .id();
-
-    layout.focus_down();
-    assert_eq!(
-        *layout
-            .active_workspace()
-            .unwrap()
-            .active_window()
-            .unwrap()
-            .id(),
-        active_before,
-        "focus_down must not move on vertical"
-    );
-
-    layout.focus_up();
-    assert_eq!(
-        *layout
-            .active_workspace()
-            .unwrap()
-            .active_window()
-            .unwrap()
-            .id(),
-        active_before,
-        "focus_up must not move on vertical"
-    );
-
-    // move_left()/move_right() do not reorder the groups either.
+    // move_left()/move_right() do not reorder the groups either. Checked one call at a time
+    // (not back-to-back) -- a reverted `move_left` alone would swap the order to [c1, c0], and
+    // a subsequent (correctly gated, still dead) `move_right` would never undo that swap, so
+    // checking only after both calls would hide a revert of either one behind the other.
     let order_before: Vec<_> = layout
         .active_workspace()
         .unwrap()
@@ -2110,9 +2094,7 @@ fn vertical_spatial_flip_for_existing_actions() {
         .collect();
 
     layout.move_left();
-    layout.move_right();
-
-    let order_after: Vec<_> = layout
+    let order_after_move_left: Vec<_> = layout
         .active_workspace()
         .unwrap()
         .scrolling()
@@ -2120,8 +2102,21 @@ fn vertical_spatial_flip_for_existing_actions() {
         .map(|col| col.id())
         .collect();
     assert_eq!(
-        order_before, order_after,
-        "move_left/move_right must not reorder groups on vertical"
+        order_before, order_after_move_left,
+        "move_left alone must not reorder groups on vertical"
+    );
+
+    layout.move_right();
+    let order_after_move_right: Vec<_> = layout
+        .active_workspace()
+        .unwrap()
+        .scrolling()
+        .columns()
+        .map(|col| col.id())
+        .collect();
+    assert_eq!(
+        order_before, order_after_move_right,
+        "move_right must not reorder groups on vertical either"
     );
 
     // Distinguish "dead direction" from "edge": a group does exist above group 1 in strip
@@ -2141,22 +2136,117 @@ fn vertical_spatial_flip_for_existing_actions() {
         "Direction::Up, the live main-axis direction, does move on vertical"
     );
 
+    // focus_up()/focus_down() are window (cross-axis) actions. Up/Down are off the vertical
+    // cross axis (Left/Right), so they are dead too -- not because there's nowhere to go, but
+    // because the direction never resolves at all. Merge the two columns into a single
+    // 2-window column first, so there genuinely is somewhere for a (wrongly) ungated
+    // focus_up/down to go -- with only one window per column the assertions below would pass
+    // even if focus_down/focus_up ignored the axis gate entirely.
+    layout.active_workspace_mut().unwrap().focus_column_first();
+    layout.active_workspace_mut().unwrap().consume_into_column();
+    assert_eq!(
+        layout
+            .active_workspace()
+            .unwrap()
+            .scrolling()
+            .active_column_idx(),
+        0
+    );
+    let active_before_down = *layout
+        .active_workspace()
+        .unwrap()
+        .active_window()
+        .unwrap()
+        .id();
+    assert_eq!(
+        active_before_down, 1,
+        "the merged column's first tile (window 1) must be active"
+    );
+
+    // Test focus_down() while active is at the *start* of the 2-tile column (window 1), where
+    // an ungated "next tile" move genuinely has somewhere to go (window 2) -- testing it from
+    // the end of the column, where even an ungated move would have nowhere to go, would be
+    // vacuous.
+    layout.focus_down();
+    assert_eq!(
+        *layout
+            .active_workspace()
+            .unwrap()
+            .active_window()
+            .unwrap()
+            .id(),
+        active_before_down,
+        "focus_down must not move on vertical"
+    );
+
+    // Live-direction probe: prove the fixture (still the same 2-window column) can actually
+    // move window focus, using the spatial method directly with the correct (cross-axis)
+    // physical direction. This also repositions active to the *end* of the column (window 2),
+    // so the focus_up() check below isn't vacuous the same way focus_down()'s would have been.
+    assert!(
+        layout
+            .active_workspace_mut()
+            .unwrap()
+            .focus_window_in_direction(axis::Direction::Right),
+        "fixture must support live window-focus movement (Right, on-axis for vertical)"
+    );
+    let active_before_up = *layout
+        .active_workspace()
+        .unwrap()
+        .active_window()
+        .unwrap()
+        .id();
+    assert_eq!(
+        active_before_up, 2,
+        "the probe must have moved focus to window 2"
+    );
+
+    // Test focus_up() while active is at the *end* of the column (window 2), where an ungated
+    // "previous tile" move genuinely has somewhere to go (window 1).
+    layout.focus_up();
+    assert_eq!(
+        *layout
+            .active_workspace()
+            .unwrap()
+            .active_window()
+            .unwrap()
+            .id(),
+        active_before_up,
+        "focus_up must not move on vertical"
+    );
+
     // switch_workspace_down() is a monitor cross-axis action; on a vertical monitor the
     // cross axis is physically Left/Right, so Down is off-axis and leaves the active
     // workspace index unchanged. switch_workspace_in_direction(Right) is the live direction.
+    //
+    // Populate workspace 1 via the live direction first -- switch_workspace_down() is itself a
+    // no-op on vertical, so the old FocusWorkspaceDown/AddWindow/FocusWorkspaceUp dance can no
+    // longer be used for setup: it would leave window 3 on workspace 0 and the final assertion
+    // would land on a freshly auto-created, still-empty workspace 1 instead of a populated one.
+    layout
+        .monitors_mut()
+        .next()
+        .unwrap()
+        .switch_workspace_in_direction(axis::Direction::Right);
     check_ops_on_layout(
         &mut layout,
-        [
-            Op::FocusWorkspaceDown,
-            Op::AddWindow {
-                params: TestWindowParams::new(3),
-            },
-            Op::FocusWorkspaceUp,
-        ],
+        [Op::AddWindow {
+            params: TestWindowParams::new(3),
+        }],
     );
+    layout
+        .monitors_mut()
+        .next()
+        .unwrap()
+        .switch_workspace_in_direction(axis::Direction::Left);
+
     assert_eq!(
         layout.active_monitor_ref().unwrap().active_workspace_idx(),
         0
+    );
+    assert!(
+        layout.active_monitor_ref().unwrap().workspaces[1].has_windows(),
+        "workspace 1 must already be populated before the switch assertions below"
     );
 
     layout.switch_workspace_down();
@@ -2172,6 +2262,10 @@ fn vertical_spatial_flip_for_existing_actions() {
         mon.active_workspace_idx(),
         1,
         "switch_workspace_in_direction(Right) is the live direction on vertical"
+    );
+    assert!(
+        mon.workspaces[1].has_windows(),
+        "the switch must land on the already-populated workspace 1"
     );
 }
 
@@ -2507,24 +2601,14 @@ fn vertical_orientation_floating_move_column_right_is_noop_move_group_down_moves
         ],
     );
 
-    let pos_of_window_1 = |layout: &Layout<TestWindow>| {
-        let mut pos = None;
-        layout.with_windows(|win, _, _, layout| {
-            if *win.id() == 1 {
-                pos = layout.tile_pos_in_workspace_view;
-            }
-        });
-        pos.unwrap()
-    };
-
-    let before = pos_of_window_1(&layout);
+    let before = floating_pos_of_window(&layout, 1);
 
     // The pre-flip logical trigger for "next in strip" (physical Right) is now a dead
     // direction on vertical: Right is off the main axis, so it must not move the floating
     // window at all.
     check_ops_on_layout(&mut layout, [Op::MoveGroupRight]);
 
-    let after_noop = pos_of_window_1(&layout);
+    let after_noop = floating_pos_of_window(&layout, 1);
     assert_eq!(
         after_noop, before,
         "move_right (physical Right) must be a no-op on vertical: Right is off the main axis"
@@ -2537,7 +2621,7 @@ fn vertical_orientation_floating_move_column_right_is_noop_move_group_down_moves
         .unwrap()
         .move_group_in_direction(axis::Direction::Down);
 
-    let after_down = pos_of_window_1(&layout);
+    let after_down = floating_pos_of_window(&layout, 1);
     let moved_x = after_down.0 - after_noop.0;
     let moved_y = after_down.1 - after_noop.1;
     assert!(
@@ -2563,24 +2647,14 @@ fn vertical_orientation_floating_move_window_down_is_noop_move_window_right_move
         ],
     );
 
-    let pos_of_window_1 = |layout: &Layout<TestWindow>| {
-        let mut pos = None;
-        layout.with_windows(|win, _, _, layout| {
-            if *win.id() == 1 {
-                pos = layout.tile_pos_in_workspace_view;
-            }
-        });
-        pos.unwrap()
-    };
-
-    let before = pos_of_window_1(&layout);
+    let before = floating_pos_of_window(&layout, 1);
 
     // The pre-flip logical trigger for "next window" (physical Down) is now a dead direction
     // on vertical: Down is off the cross axis (which is Left/Right for vertical), so it must
     // not move the floating window at all.
     check_ops_on_layout(&mut layout, [Op::MoveWindowDown]);
 
-    let after_noop = pos_of_window_1(&layout);
+    let after_noop = floating_pos_of_window(&layout, 1);
     assert_eq!(
         after_noop, before,
         "move_down (physical Down) must be a no-op on vertical: Down is off the cross axis"
@@ -2593,7 +2667,7 @@ fn vertical_orientation_floating_move_window_down_is_noop_move_window_right_move
         .unwrap()
         .move_window_in_direction(axis::Direction::Right);
 
-    let after_right = pos_of_window_1(&layout);
+    let after_right = floating_pos_of_window(&layout, 1);
     let moved_x = after_right.0 - after_noop.0;
     let moved_y = after_right.1 - after_noop.1;
     assert!(
