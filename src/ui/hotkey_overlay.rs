@@ -226,6 +226,10 @@ fn format_bind(binds: &[Bind], action: &Action) -> Option<(Option<Key>, String)>
 /// up/left are both `Backward`, so workspace down <-> right and up <-> left. On
 /// [`Orientation::Horizontal`] this reproduces the original, orientation-blind list.
 ///
+/// The dimension family also follows `orientation`: `SwitchPresetGroupWidth` (horizontal) and
+/// `SwitchPresetGroupHeight` (vertical) both name the group's strip-span dimension, so the
+/// curated slot shows whichever one is live for the current orientation.
+///
 /// `orientation` is the single source for all of these, rather than each family's own dispatch
 /// source (workspace axis for group/window actions, monitor axis for workspace stacking): see
 /// [`HotkeyOverlay::render`].
@@ -331,7 +335,11 @@ fn collect_actions(config: &Config, orientation: Orientation) -> Vec<&Action> {
         }
     }
 
-    actions.push(&Action::SwitchPresetGroupWidth);
+    if vertical {
+        actions.push(&Action::SwitchPresetGroupHeight);
+    } else {
+        actions.push(&Action::SwitchPresetGroupWidth);
+    }
     actions.push(&Action::MaximizeGroup);
 
     if vertical {
@@ -575,6 +583,7 @@ fn action_name(action: &Action) -> String {
         Action::MoveWindowToWorkspaceLeft(_) => String::from("Move Window to Workspace Left"),
         Action::MoveWindowToWorkspaceRight(_) => String::from("Move Window to Workspace Right"),
         Action::SwitchPresetGroupWidth => String::from("Switch Preset Group Widths"),
+        Action::SwitchPresetGroupHeight => String::from("Switch Preset Group Heights"),
         Action::MaximizeGroup => String::from("Maximize Group"),
         Action::ConsumeOrExpelWindowLeft => String::from("Consume or Expel Window Left"),
         Action::ConsumeOrExpelWindowRight => String::from("Consume or Expel Window Right"),
@@ -871,7 +880,7 @@ mod tests {
                 &Action::FocusWorkspaceLeft,
                 &Action::MoveGroupToWorkspaceRight(true),
                 &Action::MoveGroupToWorkspaceLeft(true),
-                &Action::SwitchPresetGroupWidth,
+                &Action::SwitchPresetGroupHeight,
                 &Action::MaximizeGroup,
                 &Action::ConsumeOrExpelWindowUp,
                 &Action::ConsumeOrExpelWindowDown,
@@ -893,6 +902,7 @@ mod tests {
             &Action::MoveGroupToWorkspaceUp(true),
             &Action::ConsumeOrExpelWindowLeft,
             &Action::ConsumeOrExpelWindowRight,
+            &Action::SwitchPresetGroupWidth,
         ] {
             assert!(
                 !vertical.contains(&dead),

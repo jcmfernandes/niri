@@ -354,6 +354,8 @@ pub enum Action {
     ResetWindowHeightById(u64),
     SwitchPresetGroupWidth,
     SwitchPresetGroupWidthBack,
+    SwitchPresetGroupHeight,
+    SwitchPresetGroupHeightBack,
     SwitchPresetWindowWidth,
     SwitchPresetWindowWidthBack,
     #[knuffel(skip)]
@@ -372,6 +374,8 @@ pub enum Action {
     MaximizeWindowToEdgesById(u64),
     SetGroupWidth(#[knuffel(argument, str)] SizeChange),
     ExpandGroupToAvailableWidth,
+    SetGroupHeight(#[knuffel(argument, str)] SizeChange),
+    ExpandGroupToAvailableHeight,
     SwitchLayout(#[knuffel(argument, str)] LayoutSwitchTarget),
     ShowHotkeyOverlay,
     MoveWorkspaceToMonitorLeft,
@@ -755,6 +759,8 @@ impl From<niri_ipc::Action> for Action {
             niri_ipc::Action::SwitchPresetGroupWidth {} => Self::SwitchPresetGroupWidth,
             niri_ipc::Action::SwitchPresetColumnWidthBack {} => Self::SwitchPresetGroupWidthBack,
             niri_ipc::Action::SwitchPresetGroupWidthBack {} => Self::SwitchPresetGroupWidthBack,
+            niri_ipc::Action::SwitchPresetGroupHeight {} => Self::SwitchPresetGroupHeight,
+            niri_ipc::Action::SwitchPresetGroupHeightBack {} => Self::SwitchPresetGroupHeightBack,
             niri_ipc::Action::SwitchPresetWindowWidth { id: None } => Self::SwitchPresetWindowWidth,
             niri_ipc::Action::SwitchPresetWindowWidthBack { id: None } => {
                 Self::SwitchPresetWindowWidthBack
@@ -787,6 +793,8 @@ impl From<niri_ipc::Action> for Action {
             niri_ipc::Action::SetGroupWidth { change } => Self::SetGroupWidth(change),
             niri_ipc::Action::ExpandColumnToAvailableWidth {} => Self::ExpandGroupToAvailableWidth,
             niri_ipc::Action::ExpandGroupToAvailableWidth {} => Self::ExpandGroupToAvailableWidth,
+            niri_ipc::Action::SetGroupHeight { change } => Self::SetGroupHeight(change),
+            niri_ipc::Action::ExpandGroupToAvailableHeight {} => Self::ExpandGroupToAvailableHeight,
             niri_ipc::Action::SwitchLayout { layout } => Self::SwitchLayout(layout),
             niri_ipc::Action::ShowHotkeyOverlay {} => Self::ShowHotkeyOverlay,
             niri_ipc::Action::MoveWorkspaceToMonitorLeft {} => Self::MoveWorkspaceToMonitorLeft,

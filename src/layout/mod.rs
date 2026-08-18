@@ -3035,6 +3035,13 @@ impl<W: LayoutElement> Layout<W> {
         workspace.toggle_width(forwards);
     }
 
+    pub fn toggle_height(&mut self, forwards: bool) {
+        let Some(workspace) = self.active_workspace_mut() else {
+            return;
+        };
+        workspace.toggle_height(forwards);
+    }
+
     pub fn toggle_window_width(&mut self, window: Option<&W::Id>, forwards: bool) {
         if let Some(InteractiveMoveState::Moving(move_)) = &mut self.interactive_move {
             if window.is_none() || window == Some(move_.tile.window().id()) {
@@ -3093,6 +3100,13 @@ impl<W: LayoutElement> Layout<W> {
             return;
         };
         workspace.set_column_width(change);
+    }
+
+    pub fn set_group_height(&mut self, change: SizeChange) {
+        let Some(workspace) = self.active_workspace_mut() else {
+            return;
+        };
+        workspace.set_group_height(change);
     }
 
     pub fn set_window_width(&mut self, window: Option<&W::Id>, change: SizeChange) {
@@ -3169,6 +3183,13 @@ impl<W: LayoutElement> Layout<W> {
             return;
         };
         workspace.expand_column_to_available_width();
+    }
+
+    pub fn expand_group_to_available_height(&mut self) {
+        let Some(workspace) = self.active_workspace_mut() else {
+            return;
+        };
+        workspace.expand_group_to_available_height();
     }
 
     pub fn toggle_window_floating(&mut self, window: Option<&W::Id>) {

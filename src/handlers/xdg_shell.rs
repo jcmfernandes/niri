@@ -1192,10 +1192,10 @@ impl State {
                 });
             }
 
-            width = ws.resolve_default_width(rules.default_width, false);
-            floating_width = ws.resolve_default_width(rules.default_width, true);
-            height = ws.resolve_default_height(rules.default_height, false);
-            floating_height = ws.resolve_default_height(rules.default_height, true);
+            width = ws.resolve_default_main_span(rules.default_width, false);
+            floating_width = ws.resolve_default_main_span(rules.default_width, true);
+            height = ws.resolve_default_cross_span(rules.default_height, false);
+            floating_height = ws.resolve_default_cross_span(rules.default_height, true);
 
             let configure_width = if is_floating {
                 floating_width

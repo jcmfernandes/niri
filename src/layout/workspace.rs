@@ -753,29 +753,39 @@ impl<W: LayoutElement> Workspace<W> {
         Some(column)
     }
 
-    pub fn resolve_default_width(
+    /// Resolves the default size along the group's main axis (the axis `new_window_size`'s
+    /// `width` parameter feeds for tiling: physical width on horizontal, physical height on
+    /// vertical). `default-group-width`/`default-group-height` are two spellings of the same
+    /// main-axis default, picked by whichever name matches the current orientation.
+    pub fn resolve_default_main_span(
         &self,
-        default_width: Option<Option<PresetSize>>,
+        default_main_span: Option<Option<PresetSize>>,
         is_floating: bool,
     ) -> Option<PresetSize> {
-        match default_width {
-            Some(Some(width)) => Some(width),
+        match default_main_span {
+            Some(Some(span)) => Some(span),
             Some(None) => None,
             None if is_floating => None,
-            None => self.options.layout.default_group_width,
+            None => match self.orientation() {
+                Orientation::Horizontal => self.options.layout.default_group_width,
+                Orientation::Vertical => self.options.layout.default_group_height,
+            },
         }
     }
 
-    pub fn resolve_default_height(
+    /// Resolves the default size along the group's cross axis (the axis `new_window_size`'s
+    /// `height` parameter feeds for tiling). There is no global cross-axis default, on either
+    /// orientation.
+    pub fn resolve_default_cross_span(
         &self,
-        default_height: Option<Option<PresetSize>>,
+        default_cross_span: Option<Option<PresetSize>>,
         is_floating: bool,
     ) -> Option<PresetSize> {
-        match default_height {
-            Some(Some(height)) => Some(height),
+        match default_cross_span {
+            Some(Some(span)) => Some(span),
             Some(None) => None,
             None if is_floating => None,
-            // We don't have a global default at the moment.
+            // We don't have a global cross-axis default at the moment.
             None => None,
         }
     }
@@ -1230,7 +1240,24 @@ impl<W: LayoutElement> Workspace<W> {
         self.scrolling.center_visible_columns();
     }
 
+    // Width names a physical width: the group's span is one only on a horizontal strip. The
+    // height family below mirrors it on vertical. The floating branch keeps its axis-mapped
+    // behavior, so on vertical the height actions drive floating main size.
     pub fn toggle_width(&mut self, forwards: bool) {
+        if self.orientation() != Orientation::Horizontal {
+            return;
+        }
+        if self.floating_is_active.get() {
+            self.floating.toggle_main_size(self.axis(), None, forwards);
+        } else {
+            self.scrolling.toggle_width(forwards);
+        }
+    }
+
+    pub fn toggle_height(&mut self, forwards: bool) {
+        if self.orientation() != Orientation::Vertical {
+            return;
+        }
         if self.floating_is_active.get() {
             self.floating.toggle_main_size(self.axis(), None, forwards);
         } else {
@@ -1248,6 +1275,20 @@ impl<W: LayoutElement> Workspace<W> {
     }
 
     pub fn set_column_width(&mut self, change: SizeChange) {
+        if self.orientation() != Orientation::Horizontal {
+            return;
+        }
+        if self.floating_is_active.get() {
+            self.floating.set_main_size(self.axis(), None, change, true);
+        } else {
+            self.scrolling.set_window_width(None, change);
+        }
+    }
+
+    pub fn set_group_height(&mut self, change: SizeChange) {
+        if self.orientation() != Orientation::Vertical {
+            return;
+        }
         if self.floating_is_active.get() {
             self.floating.set_main_size(self.axis(), None, change, true);
         } else {
@@ -1309,6 +1350,19 @@ impl<W: LayoutElement> Workspace<W> {
     }
 
     pub fn expand_column_to_available_width(&mut self) {
+        if self.orientation() != Orientation::Horizontal {
+            return;
+        }
+        if self.floating_is_active.get() {
+            return;
+        }
+        self.scrolling.expand_column_to_available_width();
+    }
+
+    pub fn expand_group_to_available_height(&mut self) {
+        if self.orientation() != Orientation::Vertical {
+            return;
+        }
         if self.floating_is_active.get() {
             return;
         }

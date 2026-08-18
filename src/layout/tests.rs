@@ -623,6 +623,8 @@ enum Op {
     },
     SwitchPresetGroupWidth,
     SwitchPresetGroupWidthBack,
+    SwitchPresetGroupHeight,
+    SwitchPresetGroupHeightBack,
     SwitchPresetWindowWidth {
         #[proptest(strategy = "proptest::option::of(1..=5usize)")]
         id: Option<usize>,
@@ -662,6 +664,8 @@ enum Op {
         id: Option<usize>,
     },
     ExpandGroupToAvailableWidth,
+    SetGroupHeight(#[proptest(strategy = "arbitrary_size_change()")] SizeChange),
+    ExpandGroupToAvailableHeight,
     ToggleWindowFloating {
         #[proptest(strategy = "proptest::option::of(1..=5usize)")]
         id: Option<usize>,
@@ -1470,6 +1474,8 @@ impl Op {
             }
             Op::SwitchPresetGroupWidth => layout.toggle_width(true),
             Op::SwitchPresetGroupWidthBack => layout.toggle_width(false),
+            Op::SwitchPresetGroupHeight => layout.toggle_height(true),
+            Op::SwitchPresetGroupHeightBack => layout.toggle_height(false),
             Op::SwitchPresetWindowWidth { id } => {
                 let id = id.filter(|id| layout.has_window(id));
                 layout.toggle_window_width(id.as_ref(), true);
@@ -1511,6 +1517,8 @@ impl Op {
                 layout.reset_window_height(id.as_ref());
             }
             Op::ExpandGroupToAvailableWidth => layout.expand_column_to_available_width(),
+            Op::SetGroupHeight(change) => layout.set_group_height(change),
+            Op::ExpandGroupToAvailableHeight => layout.expand_group_to_available_height(),
             Op::ToggleWindowFloating { id } => {
                 let id = id.filter(|id| layout.has_window(id));
                 layout.toggle_window_floating(id.as_ref());
@@ -2785,7 +2793,7 @@ fn overview_arrangement_does_not_depend_on_active_workspace() {
 }
 
 #[test]
-fn vertical_orientation_set_column_width_changes_tile_height() {
+fn vertical_orientation_set_group_height_changes_tile_height() {
     let mut options = Options::default();
     options.layout.orientation = Orientation::Vertical;
 
@@ -2804,7 +2812,7 @@ fn vertical_orientation_set_column_width_changes_tile_height() {
 
     check_ops_on_layout(
         &mut layout,
-        [Op::SetGroupWidth(SizeChange::AdjustProportion(5.))],
+        [Op::SetGroupHeight(SizeChange::AdjustProportion(5.))],
     );
 
     let (_, win) = layout.windows().next().unwrap();
@@ -3008,7 +3016,7 @@ fn vertical_orientation_floating_move_window_down_is_noop_move_window_right_move
 }
 
 #[test]
-fn vertical_orientation_floating_set_column_width_changes_window_height() {
+fn vertical_orientation_floating_set_group_height_changes_window_height() {
     let mut options = Options::default();
     options.layout.orientation = Orientation::Vertical;
 
@@ -3028,7 +3036,7 @@ fn vertical_orientation_floating_set_column_width_changes_window_height() {
 
     check_ops_on_layout(
         &mut layout,
-        [Op::SetGroupWidth(SizeChange::AdjustProportion(5.))],
+        [Op::SetGroupHeight(SizeChange::AdjustProportion(5.))],
     );
 
     let (_, win) = layout.windows().next().unwrap();
@@ -3037,7 +3045,231 @@ fn vertical_orientation_floating_set_column_width_changes_window_height() {
     assert_eq!(before.w, after.w);
     assert!(
         after.h > before.h,
-        "expected floating column width to grow height in vertical mode: {before:?} -> {after:?}"
+        "expected floating group height to grow height in vertical mode: {before:?} -> {after:?}"
+    );
+}
+
+#[test]
+fn vertical_orientation_gates_width_family_and_ungates_height_family() {
+    let mut options = Options::default();
+    options.layout.orientation = Orientation::Vertical;
+
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(1),
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+        ],
+    );
+
+    let (_, win) = layout.windows().next().unwrap();
+    let before = win.requested_size().unwrap();
+
+    // The width family is gated off on vertical: none of these may change anything.
+    layout.toggle_width(true);
+    layout.set_column_width(SizeChange::AdjustProportion(5.));
+    layout.expand_column_to_available_width();
+
+    let (_, win) = layout.windows().next().unwrap();
+    let after_gated = win.requested_size().unwrap();
+    assert_eq!(
+        before, after_gated,
+        "the width family must be a no-op on a vertical workspace"
+    );
+
+    // Live probe: the height family drives the same span on vertical, proving the assertion
+    // above is not vacuously true (e.g. because nothing here can ever change tile size).
+    layout.toggle_height(true);
+
+    let (_, win) = layout.windows().next().unwrap();
+    let after_height = win.requested_size().unwrap();
+    assert_eq!(before.w, after_height.w);
+    assert_ne!(
+        before.h, after_height.h,
+        "toggle_height must change the group's span on vertical"
+    );
+}
+
+#[test]
+fn horizontal_orientation_gates_height_family_and_ungates_width_family() {
+    let mut layout = check_ops_with_options(
+        Options::default(),
+        [
+            Op::AddOutput(1),
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+        ],
+    );
+
+    let (_, win) = layout.windows().next().unwrap();
+    let before = win.requested_size().unwrap();
+
+    // The height family is gated off on horizontal: none of these may change anything.
+    layout.toggle_height(true);
+    layout.set_group_height(SizeChange::AdjustProportion(5.));
+    layout.expand_group_to_available_height();
+
+    let (_, win) = layout.windows().next().unwrap();
+    let after_gated = win.requested_size().unwrap();
+    assert_eq!(
+        before, after_gated,
+        "the height family must be a no-op on a horizontal workspace"
+    );
+
+    // Live probe: the width family drives the same span on horizontal, proving the assertion
+    // above is not vacuously true.
+    layout.toggle_width(true);
+
+    let (_, win) = layout.windows().next().unwrap();
+    let after_width = win.requested_size().unwrap();
+    assert_eq!(before.h, after_width.h);
+    assert_ne!(
+        before.w, after_width.w,
+        "toggle_width must change the group's span on horizontal"
+    );
+}
+
+#[test]
+fn vertical_orientation_toggle_height_cycles_height_presets_not_width_presets() {
+    let mut options = Options::default();
+    options.layout.orientation = Orientation::Vertical;
+    options.layout.preset_group_widths = vec![PresetSize::Fixed(300)];
+    options.layout.preset_group_heights = vec![PresetSize::Fixed(700)];
+
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(1),
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+        ],
+    );
+
+    layout.toggle_height(true);
+
+    let (_, win) = layout.windows().next().unwrap();
+    let size = win.requested_size().unwrap();
+    assert_eq!(
+        size.h, 700,
+        "toggle_height must cycle preset_group_heights, not preset_group_widths"
+    );
+}
+
+#[test]
+fn resolve_default_main_span_follows_orientation() {
+    // Horizontal: default_group_width is the main-axis default.
+    let mut options = Options::default();
+    options.layout.default_group_width = Some(PresetSize::Fixed(444));
+
+    let layout = check_ops_with_options(options, [Op::AddOutput(1)]);
+    let ws = layout.active_workspace().unwrap();
+
+    assert_eq!(
+        ws.resolve_default_main_span(None, false),
+        Some(PresetSize::Fixed(444))
+    );
+    assert_eq!(
+        ws.resolve_default_main_span(None, true),
+        None,
+        "floating never gets the global group default"
+    );
+
+    // Vertical: default_group_height is the main-axis default instead.
+    let mut options = Options::default();
+    options.layout.orientation = Orientation::Vertical;
+    options.layout.default_group_height = Some(PresetSize::Fixed(555));
+
+    let layout = check_ops_with_options(options, [Op::AddOutput(1)]);
+    let ws = layout.active_workspace().unwrap();
+
+    assert_eq!(
+        ws.resolve_default_main_span(None, false),
+        Some(PresetSize::Fixed(555))
+    );
+    assert_eq!(
+        ws.resolve_default_main_span(None, true),
+        None,
+        "floating never gets the global group default"
+    );
+}
+
+#[test]
+fn resolve_default_cross_span_has_no_global_default() {
+    // Neither orientation has a cross-axis global default, even when default_group_height
+    // (or width) is set: it only ever feeds the main-axis resolver.
+    let mut options = Options::default();
+    options.layout.default_group_height = Some(PresetSize::Fixed(444));
+
+    let layout = check_ops_with_options(options, [Op::AddOutput(1)]);
+    let ws = layout.active_workspace().unwrap();
+    assert_eq!(ws.resolve_default_cross_span(None, false), None);
+
+    let mut options = Options::default();
+    options.layout.orientation = Orientation::Vertical;
+    // default_group_width is Some(0.5) by default.
+
+    let layout = check_ops_with_options(options, [Op::AddOutput(1)]);
+    let ws = layout.active_workspace().unwrap();
+    assert_eq!(ws.resolve_default_cross_span(None, false), None);
+}
+
+#[test]
+fn new_window_size_honors_default_group_span_on_the_matching_physical_axis() {
+    // Horizontal: default_group_width must drive the *physical* width; the cross axis
+    // (physical height) is left unconstrained, since there is no cross-axis global default.
+    let mut options = Options::default();
+    options.layout.default_group_width = Some(PresetSize::Fixed(444));
+
+    let layout = check_ops_with_options(options, [Op::AddOutput(1)]);
+    let ws = layout.active_workspace().unwrap();
+
+    let main = ws.resolve_default_main_span(None, false);
+    let cross = ws.resolve_default_cross_span(None, false);
+    let size = ws.new_window_size(
+        main,
+        cross,
+        false,
+        &ResolvedWindowRules::default(),
+        (Size::from((0, 0)), Size::from((0, 0))),
+    );
+    assert_eq!(
+        size.w, 444,
+        "default_group_width must drive physical width on horizontal"
+    );
+    assert_ne!(
+        size.h, 444,
+        "the cross axis must not pick up the main-axis default"
+    );
+
+    // Vertical: default_group_height must drive the *physical* height instead; the cross axis
+    // (physical width) is left unconstrained.
+    let mut options = Options::default();
+    options.layout.orientation = Orientation::Vertical;
+    options.layout.default_group_height = Some(PresetSize::Fixed(555));
+
+    let layout = check_ops_with_options(options, [Op::AddOutput(1)]);
+    let ws = layout.active_workspace().unwrap();
+
+    let main = ws.resolve_default_main_span(None, false);
+    let cross = ws.resolve_default_cross_span(None, false);
+    let size = ws.new_window_size(
+        main,
+        cross,
+        false,
+        &ResolvedWindowRules::default(),
+        (Size::from((0, 0)), Size::from((0, 0))),
+    );
+    assert_eq!(
+        size.h, 555,
+        "default_group_height must drive physical height on vertical"
+    );
+    assert_ne!(
+        size.w, 555,
+        "the cross axis must not pick up the main-axis default"
     );
 }
 
@@ -3075,6 +3307,48 @@ fn vertical_orientation_floating_set_window_height_changes_window_width() {
     assert!(
         after.w > before.w,
         "expected floating window height to grow width in vertical mode: {before:?} -> {after:?}"
+    );
+}
+
+#[test]
+fn vertical_orientation_switch_preset_window_height_still_uses_width_presets() {
+    // switch-preset-window-height is axis-mapped (Workspace::toggle_window_height calls
+    // floating.toggle_cross_size), and the cross axis is physical width on a vertical
+    // workspace: AxisMap::map_cross resolves the cross axis to the literal
+    // toggle_window_width function on vertical (mirroring set-window-height's behavior in
+    // the test above), which has always read preset_group_widths -- there is no dedicated
+    // preset-window-widths option, window-width has always shared the group-width list. This
+    // must stay true regardless of orientation: group-height's toggle_main_size resolves to
+    // the literal toggle_window_height instead on vertical, so it never reaches this function,
+    // and making this function orientation-aware would only ever change this physical/window
+    // family's behavior for no benefit -- exactly the regression this pins down. Three preset
+    // lists are given distinct values so any wrong-list read fails visibly.
+    let mut options = Options::default();
+    options.layout.orientation = Orientation::Vertical;
+    options.layout.preset_group_widths = vec![PresetSize::Fixed(301)];
+    options.layout.preset_group_heights = vec![PresetSize::Fixed(601)];
+    options.layout.preset_window_heights = vec![PresetSize::Fixed(701)];
+
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(1),
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+            Op::ToggleWindowFloating { id: None },
+        ],
+    );
+
+    check_ops_on_layout(&mut layout, [Op::SwitchPresetWindowHeight { id: None }]);
+
+    let (_, win) = layout.windows().next().unwrap();
+    let size = win.expected_size().unwrap();
+    assert_eq!(
+        size.w, 301,
+        "switch-preset-window-height on vertical must keep cycling preset_group_widths (via \
+         the literal toggle_window_width it's axis-mapped to), not preset_group_heights or \
+         preset_window_heights"
     );
 }
 

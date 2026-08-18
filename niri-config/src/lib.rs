@@ -1469,6 +1469,22 @@ mod tests {
                         0.25,
                     ),
                 ),
+                preset_group_heights: [
+                    Proportion(
+                        0.3333333333333333,
+                    ),
+                    Proportion(
+                        0.5,
+                    ),
+                    Proportion(
+                        0.6666666666666666,
+                    ),
+                ],
+                default_group_height: Some(
+                    Proportion(
+                        0.5,
+                    ),
+                ),
                 preset_window_heights: [
                     Proportion(
                         0.25,
@@ -2792,6 +2808,54 @@ mod tests {
             both.layout.default_group_width,
             Some(PresetSize::Proportion(0.5)),
             "group spelling should win when both are set",
+        );
+    }
+
+    #[test]
+    fn height_actions_parse() {
+        use niri_ipc::SizeChange;
+
+        let cases = [
+            (
+                "switch-preset-group-height",
+                Action::SwitchPresetGroupHeight,
+            ),
+            (
+                "switch-preset-group-height-back",
+                Action::SwitchPresetGroupHeightBack,
+            ),
+            (
+                r#"set-group-height "50%""#,
+                Action::SetGroupHeight(SizeChange::SetProportion(50.)),
+            ),
+            (
+                "expand-group-to-available-height",
+                Action::ExpandGroupToAvailableHeight,
+            ),
+        ];
+        for (name, expected) in cases {
+            let config = do_parse(&format!("binds {{ Mod+T {{ {name}; }}\n}}"));
+            assert_eq!(config.binds.0[0].action, expected, "`{name}`");
+        }
+    }
+
+    #[test]
+    fn height_option_spellings() {
+        let config = do_parse(
+            r#"
+            layout {
+                preset-group-heights { proportion 0.25; }
+                default-group-height { proportion 0.25; }
+            }
+            "#,
+        );
+        assert_eq!(
+            config.layout.preset_group_heights,
+            vec![PresetSize::Proportion(0.25)]
+        );
+        assert_eq!(
+            config.layout.default_group_height,
+            Some(PresetSize::Proportion(0.25))
         );
     }
 }

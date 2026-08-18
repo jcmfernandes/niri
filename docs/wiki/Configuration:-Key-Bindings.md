@@ -192,6 +192,10 @@ Workspaces run the other way: the vertical workspace spellings (`focus-workspace
 Windows within a group follow the cross axis, so on a vertical-orientation output `focus-window-up` and `focus-window-down` do nothing, and `focus-window-left` and `focus-window-right` apply instead.
 `focus-window-first` and `focus-window-last`, like `focus-group-first` and `focus-group-last`, are orientation-neutral and work the same on every output.
 
+<sup>Since: next release</sup> The width actions (`set-group-width`, `switch-preset-group-width`, `expand-group-to-available-width`, …) act on horizontal-orientation strips only, and do nothing on a vertical one.
+The height actions (`set-group-height`, `switch-preset-group-height`, `expand-group-to-available-height`, …) act on vertical-orientation strips only, and do nothing on a horizontal one.
+The `column` spellings (`set-column-width`, `switch-preset-column-width`, …) remain legacy names for the width family only; the height family has no `column` spelling.
+
 Here are a few actions that benefit from more explanation.
 
 #### `spawn`

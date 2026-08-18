@@ -1047,15 +1047,31 @@ pub enum Action {
     /// Switch between preset column widths.
     ///
     /// Legacy spelling of the same action; prefer the group name.
+    ///
+    /// Does nothing on vertical-orientation workspaces.
     SwitchPresetColumnWidth {},
     /// Switch between preset group widths.
+    ///
+    /// Does nothing on vertical-orientation workspaces.
     SwitchPresetGroupWidth {},
     /// Switch between preset column widths backwards.
     ///
     /// Legacy spelling of the same action; prefer the group name.
+    ///
+    /// Does nothing on vertical-orientation workspaces.
     SwitchPresetColumnWidthBack {},
     /// Switch between preset group widths backwards.
+    ///
+    /// Does nothing on vertical-orientation workspaces.
     SwitchPresetGroupWidthBack {},
+    /// Switch between preset group heights.
+    ///
+    /// Does nothing on horizontal-orientation workspaces.
+    SwitchPresetGroupHeight {},
+    /// Switch between preset group heights backwards.
+    ///
+    /// Does nothing on horizontal-orientation workspaces.
+    SwitchPresetGroupHeightBack {},
     /// Switch between preset window widths.
     SwitchPresetWindowWidth {
         /// Id of the window whose width to switch.
@@ -1105,12 +1121,16 @@ pub enum Action {
     /// Change the width of the focused column.
     ///
     /// Legacy spelling of the same action; prefer the group name.
+    ///
+    /// Does nothing on vertical-orientation workspaces.
     SetColumnWidth {
         /// How to change the width.
         #[cfg_attr(feature = "clap", arg(allow_hyphen_values = true))]
         change: SizeChange,
     },
     /// Change the width of the focused group.
+    ///
+    /// Does nothing on vertical-orientation workspaces.
     SetGroupWidth {
         /// How to change the width.
         #[cfg_attr(feature = "clap", arg(allow_hyphen_values = true))]
@@ -1119,9 +1139,26 @@ pub enum Action {
     /// Expand the focused column to space not taken up by other fully visible columns.
     ///
     /// Legacy spelling of the same action; prefer the group name.
+    ///
+    /// Does nothing on vertical-orientation workspaces.
     ExpandColumnToAvailableWidth {},
     /// Expand the focused group to space not taken up by other fully visible groups.
+    ///
+    /// Does nothing on vertical-orientation workspaces.
     ExpandGroupToAvailableWidth {},
+    /// Change the height of the focused group.
+    ///
+    /// Does nothing on horizontal-orientation workspaces.
+    SetGroupHeight {
+        /// How to change the height.
+        #[cfg_attr(feature = "clap", arg(allow_hyphen_values = true))]
+        change: SizeChange,
+    },
+    /// Expand the focused group to space not taken up by other fully visible groups on the
+    /// vertical strip.
+    ///
+    /// Does nothing on horizontal-orientation workspaces.
+    ExpandGroupToAvailableHeight {},
     /// Switch between keyboard layouts.
     SwitchLayout {
         /// Layout to switch to.
@@ -2550,6 +2587,24 @@ mod tests {
         assert!(matches!(legacy, Action::SwitchPresetColumnWidth {}));
     }
 
+    #[test]
+    fn group_height_action_names_deserialize() {
+        let action: Action = serde_json::from_str(r#"{"SwitchPresetGroupHeight":{}}"#).unwrap();
+        assert!(matches!(action, Action::SwitchPresetGroupHeight {}));
+
+        let action: Action = serde_json::from_str(r#"{"SwitchPresetGroupHeightBack":{}}"#).unwrap();
+        assert!(matches!(action, Action::SwitchPresetGroupHeightBack {}));
+
+        let action: Action =
+            serde_json::from_str(r#"{"SetGroupHeight":{"change":{"SetProportion":50.0}}}"#)
+                .unwrap();
+        assert!(matches!(action, Action::SetGroupHeight { .. }));
+
+        let action: Action =
+            serde_json::from_str(r#"{"ExpandGroupToAvailableHeight":{}}"#).unwrap();
+        assert!(matches!(action, Action::ExpandGroupToAvailableHeight {}));
+    }
+
     #[cfg(feature = "clap")]
     #[test]
     fn group_action_names_parse_in_cli() {
@@ -2599,6 +2654,10 @@ mod tests {
                 ("switch-preset-group-width-back", &[]),
                 ("set-group-width", &["50%"]),
                 ("expand-group-to-available-width", &[]),
+                ("switch-preset-group-height", &[]),
+                ("switch-preset-group-height-back", &[]),
+                ("set-group-height", &["50%"]),
+                ("expand-group-to-available-height", &[]),
             ];
 
             for (name, args) in cases {

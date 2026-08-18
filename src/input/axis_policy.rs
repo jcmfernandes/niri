@@ -1,7 +1,5 @@
 use niri_config::{Modifiers, Orientation};
 
-use crate::layout::axis::PhysicalAxis;
-
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct InputAxisPolicy {
     orientation: Orientation,
@@ -39,31 +37,6 @@ impl InputAxisPolicy {
             (delta_y, delta_x)
         } else {
             (delta_x, delta_y)
-        }
-    }
-
-    /// Maps the layout's main/cross axis to a physical axis for the screenshot UI's size actions.
-    ///
-    /// This is used by the size actions (`SetGroupWidth`, `SetWindowWidth`, `SetWindowHeight`):
-    /// width actions act along the layout's main axis and the height action acts along the cross
-    /// axis. The screenshot UI works in physical (X/Y) coordinates regardless of layout, so when
-    /// the layout is vertical we need to swap the two: main-axis actions should affect the
-    /// selection vertically, and cross-axis actions should affect it horizontally. Directional
-    /// move actions deliberately do not use this: they already name a physical direction and
-    /// follow it directly.
-    pub fn screenshot_main_axis(self) -> PhysicalAxis {
-        if self.is_vertical() {
-            PhysicalAxis::Height
-        } else {
-            PhysicalAxis::Width
-        }
-    }
-
-    pub fn screenshot_cross_axis(self) -> PhysicalAxis {
-        if self.is_vertical() {
-            PhysicalAxis::Width
-        } else {
-            PhysicalAxis::Height
         }
     }
 
@@ -124,17 +97,6 @@ mod tests {
 
         assert_eq!(horizontal.split_view_workspace_deltas(3., -7.), (3., -7.));
         assert_eq!(vertical.split_view_workspace_deltas(3., -7.), (-7., 3.));
-    }
-
-    #[test]
-    fn screenshot_axes_respect_orientation() {
-        let horizontal = InputAxisPolicy::from_orientation(Orientation::Horizontal);
-        let vertical = InputAxisPolicy::from_orientation(Orientation::Vertical);
-
-        assert_eq!(horizontal.screenshot_main_axis(), PhysicalAxis::Width);
-        assert_eq!(horizontal.screenshot_cross_axis(), PhysicalAxis::Height);
-        assert_eq!(vertical.screenshot_main_axis(), PhysicalAxis::Height);
-        assert_eq!(vertical.screenshot_cross_axis(), PhysicalAxis::Width);
     }
 
     #[test]

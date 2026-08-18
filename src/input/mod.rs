@@ -326,17 +326,6 @@ impl State {
         .unwrap_or_default()
     }
 
-    /// Axis policy for the screenshot UI, derived from the layout main axis of the
-    /// workspace currently active on the selection's output. Falls back to a horizontal
-    /// (default) policy if the screenshot UI is closed or the output has no monitor.
-    fn screenshot_ui_axis_policy(&self) -> InputAxisPolicy {
-        self.niri
-            .screenshot_ui
-            .selection_output()
-            .and_then(|output| self.axis_policy_on_output(output))
-            .unwrap_or_default()
-    }
-
     /// Apply a directional move to the screenshot selection along the given physical axis.
     fn apply_screenshot_move(&mut self, axis: PhysicalAxis, forward: bool) {
         self.niri.screenshot_ui.move_along(axis, forward);
@@ -2185,6 +2174,12 @@ impl State {
             Action::SwitchPresetGroupWidthBack => {
                 self.niri.layout.toggle_width(false);
             }
+            Action::SwitchPresetGroupHeight => {
+                self.niri.layout.toggle_height(true);
+            }
+            Action::SwitchPresetGroupHeightBack => {
+                self.niri.layout.toggle_height(false);
+            }
             Action::SwitchPresetWindowWidth => {
                 self.niri.layout.toggle_window_width(None, true);
             }
@@ -2573,22 +2568,27 @@ impl State {
             }
             Action::SetGroupWidth(change) => {
                 if self.niri.screenshot_ui.is_open() {
-                    // SetGroupWidth follows the layout's main axis: in vertical layout this
-                    // is the Y axis, so we map it to the selection's height.
-                    self.apply_screenshot_size_change(
-                        self.screenshot_ui_axis_policy().screenshot_main_axis(),
-                        change,
-                    );
+                    // SetGroupWidth names a physical width, so it always sizes the selection's
+                    // width, regardless of layout orientation.
+                    self.apply_screenshot_size_change(PhysicalAxis::Width, change);
                 } else {
                     self.niri.layout.set_column_width(change);
                 }
             }
+            Action::SetGroupHeight(change) => {
+                if self.niri.screenshot_ui.is_open() {
+                    // SetGroupHeight names a physical height, so it always sizes the selection's
+                    // height, regardless of layout orientation.
+                    self.apply_screenshot_size_change(PhysicalAxis::Height, change);
+                } else {
+                    self.niri.layout.set_group_height(change);
+                }
+            }
             Action::SetWindowWidth(change) => {
                 if self.niri.screenshot_ui.is_open() {
-                    self.apply_screenshot_size_change(
-                        self.screenshot_ui_axis_policy().screenshot_main_axis(),
-                        change,
-                    );
+                    // SetWindowWidth names a physical width, so it always sizes the selection's
+                    // width, regardless of layout orientation.
+                    self.apply_screenshot_size_change(PhysicalAxis::Width, change);
                 } else {
                     self.niri.layout.set_window_width(None, change);
                 }
@@ -2602,12 +2602,9 @@ impl State {
             }
             Action::SetWindowHeight(change) => {
                 if self.niri.screenshot_ui.is_open() {
-                    // SetWindowHeight follows the layout's cross axis: in vertical layout
-                    // this is the X axis, so we map it to the selection's width.
-                    self.apply_screenshot_size_change(
-                        self.screenshot_ui_axis_policy().screenshot_cross_axis(),
-                        change,
-                    );
+                    // SetWindowHeight names a physical height, so it always sizes the selection's
+                    // height, regardless of layout orientation.
+                    self.apply_screenshot_size_change(PhysicalAxis::Height, change);
                 } else {
                     self.niri.layout.set_window_height(None, change);
                 }
@@ -2631,6 +2628,9 @@ impl State {
             }
             Action::ExpandGroupToAvailableWidth => {
                 self.niri.layout.expand_column_to_available_width();
+            }
+            Action::ExpandGroupToAvailableHeight => {
+                self.niri.layout.expand_group_to_available_height();
             }
             Action::ShowHotkeyOverlay => {
                 if self.niri.hotkey_overlay.show() {
@@ -5415,6 +5415,7 @@ fn allowed_during_screenshot(action: &Action) -> bool {
             | Action::SetWindowWidth(_)
             | Action::SetWindowHeight(_)
             | Action::SetGroupWidth(_)
+            | Action::SetGroupHeight(_)
     )
 }
 
