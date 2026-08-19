@@ -1068,6 +1068,54 @@ impl State {
                     self.niri.queue_redraw_all();
                 }
             }
+            Action::MoveWindowOrGroupLeft => {
+                if self.niri.screenshot_ui.is_open() {
+                    self.apply_screenshot_move(PhysicalAxis::Width, false);
+                } else {
+                    self.niri
+                        .layout
+                        .move_window_or_group_in_direction(Direction::Left);
+                    self.maybe_warp_cursor_to_focus();
+                    // FIXME: granular
+                    self.niri.queue_redraw_all();
+                }
+            }
+            Action::MoveWindowOrGroupRight => {
+                if self.niri.screenshot_ui.is_open() {
+                    self.apply_screenshot_move(PhysicalAxis::Width, true);
+                } else {
+                    self.niri
+                        .layout
+                        .move_window_or_group_in_direction(Direction::Right);
+                    self.maybe_warp_cursor_to_focus();
+                    // FIXME: granular
+                    self.niri.queue_redraw_all();
+                }
+            }
+            Action::MoveWindowOrGroupUp => {
+                if self.niri.screenshot_ui.is_open() {
+                    self.apply_screenshot_move(PhysicalAxis::Height, false);
+                } else {
+                    self.niri
+                        .layout
+                        .move_window_or_group_in_direction(Direction::Up);
+                    self.maybe_warp_cursor_to_focus();
+                    // FIXME: granular
+                    self.niri.queue_redraw_all();
+                }
+            }
+            Action::MoveWindowOrGroupDown => {
+                if self.niri.screenshot_ui.is_open() {
+                    self.apply_screenshot_move(PhysicalAxis::Height, true);
+                } else {
+                    self.niri
+                        .layout
+                        .move_window_or_group_in_direction(Direction::Down);
+                    self.maybe_warp_cursor_to_focus();
+                    // FIXME: granular
+                    self.niri.queue_redraw_all();
+                }
+            }
             Action::MoveGroupToFirst => {
                 self.niri.layout.move_column_to_first();
                 self.maybe_warp_cursor_to_focus();
@@ -1430,6 +1478,42 @@ impl State {
             }
             Action::FocusGroupDown => {
                 self.niri.layout.focus_group_in_direction(Direction::Down);
+                self.maybe_warp_cursor_to_focus();
+                self.niri.layer_shell_on_demand_focus = None;
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
+            Action::FocusWindowOrGroupLeft => {
+                self.niri
+                    .layout
+                    .focus_window_or_group_in_direction(Direction::Left);
+                self.maybe_warp_cursor_to_focus();
+                self.niri.layer_shell_on_demand_focus = None;
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
+            Action::FocusWindowOrGroupRight => {
+                self.niri
+                    .layout
+                    .focus_window_or_group_in_direction(Direction::Right);
+                self.maybe_warp_cursor_to_focus();
+                self.niri.layer_shell_on_demand_focus = None;
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
+            Action::FocusWindowOrGroupUp => {
+                self.niri
+                    .layout
+                    .focus_window_or_group_in_direction(Direction::Up);
+                self.maybe_warp_cursor_to_focus();
+                self.niri.layer_shell_on_demand_focus = None;
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
+            Action::FocusWindowOrGroupDown => {
+                self.niri
+                    .layout
+                    .focus_window_or_group_in_direction(Direction::Down);
                 self.maybe_warp_cursor_to_focus();
                 self.niri.layer_shell_on_demand_focus = None;
                 // FIXME: granular
@@ -5398,6 +5482,10 @@ fn allowed_during_screenshot(action: &Action) -> bool {
             | Action::MoveWindowLeftOrToWorkspaceLeft
             | Action::MoveWindowRight
             | Action::MoveWindowRightOrToWorkspaceRight
+            | Action::MoveWindowOrGroupLeft
+            | Action::MoveWindowOrGroupRight
+            | Action::MoveWindowOrGroupUp
+            | Action::MoveWindowOrGroupDown
             | Action::MoveGroupToMonitorLeft
             | Action::MoveGroupToMonitorRight
             | Action::MoveGroupToMonitorUp

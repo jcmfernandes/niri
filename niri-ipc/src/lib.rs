@@ -440,6 +440,14 @@ pub enum Action {
     FocusWindowLeft {},
     /// Focus the window to the right.
     FocusWindowRight {},
+    /// Focus the window or the group to the left, whichever lies that way.
+    FocusWindowOrGroupLeft {},
+    /// Focus the window or the group to the right, whichever lies that way.
+    FocusWindowOrGroupRight {},
+    /// Focus the window or the group above, whichever lies that way.
+    FocusWindowOrGroupUp {},
+    /// Focus the window or the group below, whichever lies that way.
+    FocusWindowOrGroupDown {},
     /// Focus the window below or the column to the left.
     ///
     /// Legacy spelling of the same action; prefer the group name.
@@ -570,6 +578,14 @@ pub enum Action {
     MoveWindowLeft {},
     /// Move the focused window to the right.
     MoveWindowRight {},
+    /// Move the window within its group or the whole group to the left, whichever lies that way.
+    MoveWindowOrGroupLeft {},
+    /// Move the window within its group or the whole group to the right, whichever lies that way.
+    MoveWindowOrGroupRight {},
+    /// Move the window within its group or the whole group up, whichever lies that way.
+    MoveWindowOrGroupUp {},
+    /// Move the window within its group or the whole group down, whichever lies that way.
+    MoveWindowOrGroupDown {},
     /// Move the focused window down in a column or to the workspace below.
     MoveWindowDownOrToWorkspaceDown {},
     /// Move the focused window up in a column or to the workspace above.
@@ -2746,6 +2762,14 @@ mod tests {
                 "focus-window-rightmost",
                 "focus-window-right-or-leftmost",
                 "focus-window-left-or-rightmost",
+                "focus-window-or-group-left",
+                "focus-window-or-group-right",
+                "focus-window-or-group-up",
+                "focus-window-or-group-down",
+                "move-window-or-group-left",
+                "move-window-or-group-right",
+                "move-window-or-group-up",
+                "move-window-or-group-down",
             ];
             for name in cases {
                 Action::try_parse_from(["action", name])
@@ -2772,6 +2796,17 @@ mod tests {
         assert_eq!(
             format!("{c:?}"),
             format!("{:?}", Action::FocusWindowFirst {})
+        );
+
+        let c: Action = serde_json::from_str(r#"{"FocusWindowOrGroupLeft":{}}"#).unwrap();
+        assert_eq!(
+            format!("{c:?}"),
+            format!("{:?}", Action::FocusWindowOrGroupLeft {})
+        );
+        let d: Action = serde_json::from_str(r#"{"MoveWindowOrGroupDown":{}}"#).unwrap();
+        assert_eq!(
+            format!("{d:?}"),
+            format!("{:?}", Action::MoveWindowOrGroupDown {})
         );
     }
 }

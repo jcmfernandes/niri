@@ -2742,6 +2742,27 @@ mod tests {
     }
 
     #[test]
+    fn fused_composite_actions_parse() {
+        let cases = [
+            ("focus-window-or-group-left", Action::FocusWindowOrGroupLeft),
+            (
+                "focus-window-or-group-right",
+                Action::FocusWindowOrGroupRight,
+            ),
+            ("focus-window-or-group-up", Action::FocusWindowOrGroupUp),
+            ("focus-window-or-group-down", Action::FocusWindowOrGroupDown),
+            ("move-window-or-group-left", Action::MoveWindowOrGroupLeft),
+            ("move-window-or-group-right", Action::MoveWindowOrGroupRight),
+            ("move-window-or-group-up", Action::MoveWindowOrGroupUp),
+            ("move-window-or-group-down", Action::MoveWindowOrGroupDown),
+        ];
+        for (name, expected) in cases {
+            let config = do_parse(&format!("binds {{ Mod+T {{ {name}; }}\n}}"));
+            assert_eq!(config.binds.0[0].action, expected, "`{name}`");
+        }
+    }
+
+    #[test]
     fn width_column_spellings_parse_like_group_actions() {
         let pairs = [
             ("switch-preset-column-width", "switch-preset-group-width"),
