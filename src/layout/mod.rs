@@ -1882,6 +1882,13 @@ impl<W: LayoutElement> Layout<W> {
         workspace.move_window_in_direction(dir);
     }
 
+    pub fn move_window_or_group_in_direction(&mut self, dir: Direction) {
+        let Some(workspace) = self.active_workspace_mut() else {
+            return;
+        };
+        workspace.move_window_or_group_in_direction(dir);
+    }
+
     pub fn move_down(&mut self) {
         self.move_window_in_direction(Direction::Down);
     }
@@ -1941,6 +1948,13 @@ impl<W: LayoutElement> Layout<W> {
             return;
         };
         workspace.focus_group_in_direction(dir);
+    }
+
+    pub fn focus_window_or_group_in_direction(&mut self, dir: Direction) {
+        let Some(workspace) = self.active_workspace_mut() else {
+            return;
+        };
+        workspace.focus_window_or_group_in_direction(dir);
     }
 
     pub fn focus_left(&mut self) {
@@ -2047,7 +2061,7 @@ impl<W: LayoutElement> Layout<W> {
         self.focus_window_in_direction(Direction::Up);
     }
 
-    pub fn focus_window_or_group_in_direction(
+    pub fn focus_window_or_group_in_directions(
         &mut self,
         window_dir: Direction,
         group_dir: Direction,
@@ -2055,23 +2069,23 @@ impl<W: LayoutElement> Layout<W> {
         let Some(workspace) = self.active_workspace_mut() else {
             return;
         };
-        workspace.focus_window_or_group_in_direction(window_dir, group_dir);
+        workspace.focus_window_or_group_in_directions(window_dir, group_dir);
     }
 
     pub fn focus_down_or_left(&mut self) {
-        self.focus_window_or_group_in_direction(Direction::Down, Direction::Left);
+        self.focus_window_or_group_in_directions(Direction::Down, Direction::Left);
     }
 
     pub fn focus_down_or_right(&mut self) {
-        self.focus_window_or_group_in_direction(Direction::Down, Direction::Right);
+        self.focus_window_or_group_in_directions(Direction::Down, Direction::Right);
     }
 
     pub fn focus_up_or_left(&mut self) {
-        self.focus_window_or_group_in_direction(Direction::Up, Direction::Left);
+        self.focus_window_or_group_in_directions(Direction::Up, Direction::Left);
     }
 
     pub fn focus_up_or_right(&mut self) {
-        self.focus_window_or_group_in_direction(Direction::Up, Direction::Right);
+        self.focus_window_or_group_in_directions(Direction::Up, Direction::Right);
     }
 
     pub fn focus_window_or_workspace_in_direction(&mut self, dir: Direction) {

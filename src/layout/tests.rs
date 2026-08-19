@@ -485,6 +485,10 @@ enum Op {
     FocusWindowUp,
     FocusWindowLeft,
     FocusWindowRight,
+    FocusWindowOrGroupLeft,
+    FocusWindowOrGroupRight,
+    FocusWindowOrGroupUp,
+    FocusWindowOrGroupDown,
     FocusWindowDownOrGroupLeft,
     FocusWindowDownOrGroupRight,
     FocusWindowUpOrGroupLeft,
@@ -524,6 +528,10 @@ enum Op {
     MoveWindowUp,
     MoveWindowLeft,
     MoveWindowRight,
+    MoveWindowOrGroupLeft,
+    MoveWindowOrGroupRight,
+    MoveWindowOrGroupUp,
+    MoveWindowOrGroupDown,
     MoveWindowDownOrToWorkspaceDown,
     MoveWindowUpOrToWorkspaceUp,
     MoveWindowRightOrToWorkspaceRight,
@@ -1216,18 +1224,30 @@ impl Op {
             Op::FocusWindowUp => layout.focus_up(),
             Op::FocusWindowLeft => layout.focus_window_in_direction(axis::Direction::Left),
             Op::FocusWindowRight => layout.focus_window_in_direction(axis::Direction::Right),
+            Op::FocusWindowOrGroupLeft => {
+                layout.focus_window_or_group_in_direction(axis::Direction::Left)
+            }
+            Op::FocusWindowOrGroupRight => {
+                layout.focus_window_or_group_in_direction(axis::Direction::Right)
+            }
+            Op::FocusWindowOrGroupUp => {
+                layout.focus_window_or_group_in_direction(axis::Direction::Up)
+            }
+            Op::FocusWindowOrGroupDown => {
+                layout.focus_window_or_group_in_direction(axis::Direction::Down)
+            }
             Op::FocusWindowDownOrGroupLeft => layout.focus_down_or_left(),
             Op::FocusWindowDownOrGroupRight => layout.focus_down_or_right(),
             Op::FocusWindowUpOrGroupLeft => layout.focus_up_or_left(),
             Op::FocusWindowUpOrGroupRight => layout.focus_up_or_right(),
             Op::FocusWindowRightOrGroupUp => layout
-                .focus_window_or_group_in_direction(axis::Direction::Right, axis::Direction::Up),
+                .focus_window_or_group_in_directions(axis::Direction::Right, axis::Direction::Up),
             Op::FocusWindowRightOrGroupDown => layout
-                .focus_window_or_group_in_direction(axis::Direction::Right, axis::Direction::Down),
+                .focus_window_or_group_in_directions(axis::Direction::Right, axis::Direction::Down),
             Op::FocusWindowLeftOrGroupUp => layout
-                .focus_window_or_group_in_direction(axis::Direction::Left, axis::Direction::Up),
+                .focus_window_or_group_in_directions(axis::Direction::Left, axis::Direction::Up),
             Op::FocusWindowLeftOrGroupDown => layout
-                .focus_window_or_group_in_direction(axis::Direction::Left, axis::Direction::Down),
+                .focus_window_or_group_in_directions(axis::Direction::Left, axis::Direction::Down),
             Op::FocusWindowOrWorkspaceDown => layout.focus_window_or_workspace_down(),
             Op::FocusWindowOrWorkspaceUp => layout.focus_window_or_workspace_up(),
             Op::FocusWindowOrWorkspaceLeft => {
@@ -1293,6 +1313,18 @@ impl Op {
             Op::MoveWindowUp => layout.move_up(),
             Op::MoveWindowLeft => layout.move_window_in_direction(axis::Direction::Left),
             Op::MoveWindowRight => layout.move_window_in_direction(axis::Direction::Right),
+            Op::MoveWindowOrGroupLeft => {
+                layout.move_window_or_group_in_direction(axis::Direction::Left)
+            }
+            Op::MoveWindowOrGroupRight => {
+                layout.move_window_or_group_in_direction(axis::Direction::Right)
+            }
+            Op::MoveWindowOrGroupUp => {
+                layout.move_window_or_group_in_direction(axis::Direction::Up)
+            }
+            Op::MoveWindowOrGroupDown => {
+                layout.move_window_or_group_in_direction(axis::Direction::Down)
+            }
             Op::MoveWindowDownOrToWorkspaceDown => layout.move_down_or_to_workspace_down(),
             Op::MoveWindowUpOrToWorkspaceUp => layout.move_up_or_to_workspace_up(),
             Op::MoveWindowRightOrToWorkspaceRight => {
@@ -2119,6 +2151,260 @@ fn spatial_window_focus() {
     assert!(!ws.focus_window_in_direction(axis::Direction::Left));
     assert!(!ws.focus_window_in_direction(axis::Direction::Right));
     assert!(ws.focus_window_in_direction(axis::Direction::Up));
+}
+
+#[test]
+fn fused_focus_window_or_group() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(1),
+        },
+        Op::AddWindow {
+            params: TestWindowParams::new(2),
+        },
+        Op::AddWindow {
+            params: TestWindowParams::new(3),
+        },
+    ];
+
+    // Merge windows 2 and 3 into one group so both halves of the fused action have
+    // somewhere to go, using orientation-agnostic Workspace methods for the setup.
+    // focus_column is 1-based; consume_into_column pulls the next column's window
+    // into the active column (it would no-op on the last column, hence the focus
+    // first). Result: group 0 = [w1], group 1 = [w2, w3], active window w2 at the
+    // group's first position.
+    let merge_last_two = |ws: &mut Workspace<TestWindow>| {
+        ws.focus_column(2);
+        ws.consume_into_column();
+    };
+
+    // Horizontal: groups run Left/Right (main axis), windows within a group run
+    // Up/Down (cross axis).
+    let mut horizontal_options = Options::default();
+    horizontal_options.layout.orientation = Orientation::Horizontal;
+
+    let mut layout = check_ops_with_options(horizontal_options, ops.clone());
+    merge_last_two(layout.active_workspace_mut().unwrap());
+    layout.verify_invariants();
+
+    let ws = layout.active_workspace_mut().unwrap();
+    assert_eq!(ws.scrolling().active_column_idx(), 1);
+
+    // Both windows of group 1 are reachable via the window half. The active window
+    // starts at the group's first position, so go Down (to w3) before Up (back).
+    assert!(ws.focus_window_or_group_in_direction(axis::Direction::Down));
+    assert!(ws.focus_window_or_group_in_direction(axis::Direction::Up));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        1,
+        "window-half moves must stay within group 1"
+    );
+
+    // Left reaches group 0 via the group half (window half is off-axis).
+    assert!(ws.focus_window_or_group_in_direction(axis::Direction::Left));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        0,
+        "Left must focus group 0"
+    );
+
+    // Group 0 has a single window: the window half is at its edge and the group
+    // half is off-axis for Up/Down, so the fused action must no-op.
+    assert!(!ws.focus_window_or_group_in_direction(axis::Direction::Up));
+    assert!(!ws.focus_window_or_group_in_direction(axis::Direction::Down));
+    assert_eq!(ws.scrolling().active_column_idx(), 0);
+
+    assert!(ws.focus_window_or_group_in_direction(axis::Direction::Right));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        1,
+        "Right must focus group 1"
+    );
+
+    // Vertical: mirror image. Groups run Up/Down, windows within a group run
+    // Left/Right.
+    let mut vertical_options = Options::default();
+    vertical_options.layout.orientation = Orientation::Vertical;
+
+    let mut layout = check_ops_with_options(vertical_options, ops);
+    merge_last_two(layout.active_workspace_mut().unwrap());
+    layout.verify_invariants();
+
+    let ws = layout.active_workspace_mut().unwrap();
+    assert_eq!(ws.scrolling().active_column_idx(), 1);
+
+    // Active window starts at the group's first position: Right (to w3) before Left.
+    assert!(ws.focus_window_or_group_in_direction(axis::Direction::Right));
+    assert!(ws.focus_window_or_group_in_direction(axis::Direction::Left));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        1,
+        "window-half moves must stay within group 1"
+    );
+
+    assert!(ws.focus_window_or_group_in_direction(axis::Direction::Up));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        0,
+        "Up must focus group 0"
+    );
+
+    assert!(!ws.focus_window_or_group_in_direction(axis::Direction::Left));
+    assert!(!ws.focus_window_or_group_in_direction(axis::Direction::Right));
+    assert_eq!(ws.scrolling().active_column_idx(), 0);
+
+    assert!(ws.focus_window_or_group_in_direction(axis::Direction::Down));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        1,
+        "Down must focus group 1"
+    );
+}
+
+#[test]
+fn fused_move_window_or_group() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(1),
+        },
+        Op::AddWindow {
+            params: TestWindowParams::new(2),
+        },
+        Op::AddWindow {
+            params: TestWindowParams::new(3),
+        },
+    ];
+
+    let merge_last_two = |ws: &mut Workspace<TestWindow>| {
+        ws.focus_column(2);
+        ws.consume_into_column();
+    };
+
+    // Horizontal: the group half moves the group along Left/Right; the window half
+    // reorders within the group along Up/Down.
+    let mut horizontal_options = Options::default();
+    horizontal_options.layout.orientation = Orientation::Horizontal;
+
+    let mut layout = check_ops_with_options(horizontal_options, ops.clone());
+    merge_last_two(layout.active_workspace_mut().unwrap());
+    layout.verify_invariants();
+
+    let ws = layout.active_workspace_mut().unwrap();
+    assert_eq!(ws.scrolling().active_column_idx(), 1);
+
+    // Window half live: reorder within the 2-window group. The active window starts
+    // at the group's first position, so move Down before moving back Up.
+    assert!(ws.move_window_or_group_in_direction(axis::Direction::Down));
+    assert!(ws.move_window_or_group_in_direction(axis::Direction::Up));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        1,
+        "window-half moves must not move the group"
+    );
+
+    // Group half live: move the group to index 0.
+    assert!(ws.move_window_or_group_in_direction(axis::Direction::Left));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        0,
+        "Left must move the group"
+    );
+
+    // At the strip edge with the window half off-axis: no-op.
+    assert!(!ws.move_window_or_group_in_direction(axis::Direction::Left));
+    assert_eq!(ws.scrolling().active_column_idx(), 0);
+
+    layout.verify_invariants();
+
+    // Vertical: mirror image.
+    let mut vertical_options = Options::default();
+    vertical_options.layout.orientation = Orientation::Vertical;
+
+    let mut layout = check_ops_with_options(vertical_options, ops);
+    merge_last_two(layout.active_workspace_mut().unwrap());
+    layout.verify_invariants();
+
+    let ws = layout.active_workspace_mut().unwrap();
+    assert_eq!(ws.scrolling().active_column_idx(), 1);
+
+    // Active window starts at the group's first position: move Right before Left.
+    assert!(ws.move_window_or_group_in_direction(axis::Direction::Right));
+    assert!(ws.move_window_or_group_in_direction(axis::Direction::Left));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        1,
+        "window-half moves must not move the group"
+    );
+
+    assert!(ws.move_window_or_group_in_direction(axis::Direction::Up));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        0,
+        "Up must move the group"
+    );
+
+    assert!(!ws.move_window_or_group_in_direction(axis::Direction::Up));
+    assert_eq!(ws.scrolling().active_column_idx(), 0);
+
+    layout.verify_invariants();
+}
+
+#[test]
+fn fused_move_window_or_group_floating_follows_orientation() {
+    // Pins the fused move action on the floating layer: unlike the scrolling layer, a
+    // floating window has no edges to run out of, so every physical direction resolves via
+    // one of the two halves. What must still hold is that each direction is routed through
+    // the half matching the *current* orientation, not a hardcoded axis.
+    let mut options = Options::default();
+    options.layout.orientation = Orientation::Vertical;
+
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(1),
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+            Op::ToggleWindowFloating { id: None },
+        ],
+    );
+
+    let before = floating_pos_of_window(&layout, 1);
+
+    // Down is the main axis on vertical (group half), matching move_group_in_direction(Down)
+    // in the sibling floating test above.
+    let ws = layout.active_workspace_mut().unwrap();
+    assert!(ws.move_window_or_group_in_direction(axis::Direction::Down));
+
+    let after_down = floating_pos_of_window(&layout, 1);
+    assert_eq!(
+        after_down.0, before.0,
+        "fused Down must not move the floating window horizontally on vertical orientation"
+    );
+    assert!(
+        after_down.1 > before.1,
+        "fused Down must move the floating window down, like move_group_in_direction(Down)"
+    );
+
+    // Right is the cross axis on vertical (window half): it is dead for the plain group
+    // action (see vertical_orientation_floating_move_column_right_is_noop_...), but the
+    // fused action must still resolve it via the window half and move horizontally. If the
+    // fused method ignored orientation (e.g. treated Right as always the group/main axis),
+    // this would instead move the window vertically again.
+    let ws = layout.active_workspace_mut().unwrap();
+    assert!(ws.move_window_or_group_in_direction(axis::Direction::Right));
+
+    let after_right = floating_pos_of_window(&layout, 1);
+    assert_eq!(
+        after_right.1, after_down.1,
+        "fused Right must not move the floating window vertically on vertical orientation"
+    );
+    assert!(
+        after_right.0 > after_down.0,
+        "fused Right must move the floating window right via the window half"
+    );
 }
 
 #[test]

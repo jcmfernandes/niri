@@ -1101,6 +1101,16 @@ impl<W: LayoutElement> Workspace<W> {
         }
     }
 
+    pub fn focus_window_or_group_in_direction(&mut self, dir: Direction) -> bool {
+        // Windows follow the cross axis and groups the main axis, so at most one of
+        // the two halves is live for any physical direction.
+        self.focus_window_in_direction(dir) || self.focus_group_in_direction(dir)
+    }
+
+    pub fn move_window_or_group_in_direction(&mut self, dir: Direction) -> bool {
+        self.move_window_in_direction(dir) || self.move_group_in_direction(dir)
+    }
+
     pub fn focus_group_wrap_in_direction(&mut self, dir: Direction) {
         match self.axis().main_direction(dir) {
             Some(AxisDirection::Backward) => {
@@ -1117,7 +1127,7 @@ impl<W: LayoutElement> Workspace<W> {
         }
     }
 
-    pub fn focus_window_or_group_in_direction(
+    pub fn focus_window_or_group_in_directions(
         &mut self,
         window_dir: Direction,
         group_dir: Direction,
