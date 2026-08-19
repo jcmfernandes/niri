@@ -1636,7 +1636,7 @@ impl State {
             Action::FocusWindowRightOrGroupUp => {
                 self.niri
                     .layout
-                    .focus_window_or_group_in_direction(Direction::Right, Direction::Up);
+                    .focus_window_or_group_in_directions(Direction::Right, Direction::Up);
                 self.maybe_warp_cursor_to_focus();
                 self.niri.layer_shell_on_demand_focus = None;
                 // FIXME: granular
@@ -1645,7 +1645,7 @@ impl State {
             Action::FocusWindowRightOrGroupDown => {
                 self.niri
                     .layout
-                    .focus_window_or_group_in_direction(Direction::Right, Direction::Down);
+                    .focus_window_or_group_in_directions(Direction::Right, Direction::Down);
                 self.maybe_warp_cursor_to_focus();
                 self.niri.layer_shell_on_demand_focus = None;
                 // FIXME: granular
@@ -1668,7 +1668,7 @@ impl State {
             Action::FocusWindowLeftOrGroupUp => {
                 self.niri
                     .layout
-                    .focus_window_or_group_in_direction(Direction::Left, Direction::Up);
+                    .focus_window_or_group_in_directions(Direction::Left, Direction::Up);
                 self.maybe_warp_cursor_to_focus();
                 self.niri.layer_shell_on_demand_focus = None;
                 // FIXME: granular
@@ -1677,7 +1677,7 @@ impl State {
             Action::FocusWindowLeftOrGroupDown => {
                 self.niri
                     .layout
-                    .focus_window_or_group_in_direction(Direction::Left, Direction::Down);
+                    .focus_window_or_group_in_directions(Direction::Left, Direction::Down);
                 self.maybe_warp_cursor_to_focus();
                 self.niri.layer_shell_on_demand_focus = None;
                 // FIXME: granular
