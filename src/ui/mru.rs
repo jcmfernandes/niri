@@ -1890,7 +1890,9 @@ fn make_dynamic_opened_binds(config: &Config) -> Vec<Bind> {
             | Action::FocusGroupDown
             | Action::FocusGroupDownOrFirst
             | Action::FocusGroupOrMonitorDown
-            | Action::FocusWindowRightOrGroupDown => Action::MruAdvance {
+            | Action::FocusWindowRightOrGroupDown
+            | Action::FocusWindowOrGroupRight
+            | Action::FocusWindowOrGroupDown => Action::MruAdvance {
                 direction: MruDirection::Forward,
                 scope: None,
                 filter: None,
@@ -1902,7 +1904,9 @@ fn make_dynamic_opened_binds(config: &Config) -> Vec<Bind> {
             | Action::FocusGroupUp
             | Action::FocusGroupUpOrLast
             | Action::FocusGroupOrMonitorUp
-            | Action::FocusWindowLeftOrGroupUp => Action::MruAdvance {
+            | Action::FocusWindowLeftOrGroupUp
+            | Action::FocusWindowOrGroupLeft
+            | Action::FocusWindowOrGroupUp => Action::MruAdvance {
                 direction: MruDirection::Backward,
                 scope: None,
                 filter: None,
