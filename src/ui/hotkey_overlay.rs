@@ -252,21 +252,33 @@ fn collect_actions(config: &Config, orientation: Orientation) -> Vec<&Action> {
 
     actions.push(&Action::CloseWindow);
 
+    // A group slot shows the plain action when it's bound; otherwise it falls back to the
+    // fused window-or-group bind covering the same direction, so configs that only bind the
+    // fused actions don't render "(not bound)" rows.
+    let bound = |action: &Action| binds.iter().any(|bind| bind.action == *action);
+    let plain_or_fused = |plain: &'static Action, fused: &'static Action| {
+        if !bound(plain) && bound(fused) {
+            fused
+        } else {
+            plain
+        }
+    };
+
     if vertical {
-        actions.extend(&[
-            &Action::FocusGroupUp,
-            &Action::FocusGroupDown,
-            &Action::MoveGroupUp,
-            &Action::MoveGroupDown,
+        actions.extend([
+            plain_or_fused(&Action::FocusGroupUp, &Action::FocusWindowOrGroupUp),
+            plain_or_fused(&Action::FocusGroupDown, &Action::FocusWindowOrGroupDown),
+            plain_or_fused(&Action::MoveGroupUp, &Action::MoveWindowOrGroupUp),
+            plain_or_fused(&Action::MoveGroupDown, &Action::MoveWindowOrGroupDown),
             &Action::FocusWorkspaceRight,
             &Action::FocusWorkspaceLeft,
         ]);
     } else {
-        actions.extend(&[
-            &Action::FocusGroupLeft,
-            &Action::FocusGroupRight,
-            &Action::MoveGroupLeft,
-            &Action::MoveGroupRight,
+        actions.extend([
+            plain_or_fused(&Action::FocusGroupLeft, &Action::FocusWindowOrGroupLeft),
+            plain_or_fused(&Action::FocusGroupRight, &Action::FocusWindowOrGroupRight),
+            plain_or_fused(&Action::MoveGroupLeft, &Action::MoveWindowOrGroupLeft),
+            plain_or_fused(&Action::MoveGroupRight, &Action::MoveWindowOrGroupRight),
             &Action::FocusWorkspaceDown,
             &Action::FocusWorkspaceUp,
         ]);
@@ -917,5 +929,72 @@ mod tests {
                 "{dead:?} should not appear in the vertical list"
             );
         }
+    }
+
+    #[test]
+    fn collect_actions_prefers_fused_binds_when_plain_unbound() {
+        // Only the fused actions are bound: the group slots must show them instead of
+        // rendering "(not bound)" rows for the plain spellings.
+        let fused_only = Config::parse_mem(
+            r#"binds {
+                Mod+Left { focus-window-or-group-left; }
+                Mod+Right { focus-window-or-group-right; }
+                Mod+Up { focus-window-or-group-up; }
+                Mod+Down { focus-window-or-group-down; }
+                Mod+Shift+Left { move-window-or-group-left; }
+                Mod+Shift+Right { move-window-or-group-right; }
+                Mod+Shift+Up { move-window-or-group-up; }
+                Mod+Shift+Down { move-window-or-group-down; }
+            }"#,
+        )
+        .unwrap();
+
+        let horizontal = collect_actions(&fused_only, Orientation::Horizontal);
+        assert_eq!(
+            &horizontal[3..7],
+            &[
+                &Action::FocusWindowOrGroupLeft,
+                &Action::FocusWindowOrGroupRight,
+                &Action::MoveWindowOrGroupLeft,
+                &Action::MoveWindowOrGroupRight,
+            ]
+        );
+
+        let vertical = collect_actions(&fused_only, Orientation::Vertical);
+        assert_eq!(
+            &vertical[3..7],
+            &[
+                &Action::FocusWindowOrGroupUp,
+                &Action::FocusWindowOrGroupDown,
+                &Action::MoveWindowOrGroupUp,
+                &Action::MoveWindowOrGroupDown,
+            ]
+        );
+
+        // With the plain group actions bound too, they keep their slots.
+        let both = Config::parse_mem(
+            r#"binds {
+                Mod+H { focus-column-left; }
+                Mod+L { focus-column-right; }
+                Mod+Ctrl+H { move-column-left; }
+                Mod+Ctrl+L { move-column-right; }
+                Mod+Left { focus-window-or-group-left; }
+                Mod+Right { focus-window-or-group-right; }
+                Mod+Shift+Left { move-window-or-group-left; }
+                Mod+Shift+Right { move-window-or-group-right; }
+            }"#,
+        )
+        .unwrap();
+
+        let horizontal = collect_actions(&both, Orientation::Horizontal);
+        assert_eq!(
+            &horizontal[3..7],
+            &[
+                &Action::FocusGroupLeft,
+                &Action::FocusGroupRight,
+                &Action::MoveGroupLeft,
+                &Action::MoveGroupRight,
+            ]
+        );
     }
 }
