@@ -4,7 +4,8 @@ use std::time::Duration;
 
 use niri_config::utils::MergeWith as _;
 use niri_config::{
-    CenterFocusedColumn, CornerRadius, OutputName, PresetSize, Workspace as WorkspaceConfig,
+    CenterFocusedColumn, CornerRadius, Orientation, OutputName, PresetSize,
+    Workspace as WorkspaceConfig,
 };
 use niri_ipc::{ColumnDisplay, PositionChange, SizeChange, WindowLayout};
 use smithay::backend::renderer::element::Kind;
@@ -17,10 +18,10 @@ use smithay::utils::{Logical, Point, Rectangle, Serial, Size, Transform};
 use smithay::wayland::compositor::with_states;
 use smithay::wayland::shell::xdg::SurfaceCachedState;
 
+use super::axis::{AxisDirection, AxisEdge, AxisMap, Direction};
+use super::dims::Dims;
 use super::floating::{FloatingSpace, FloatingSpaceRenderElement};
-use super::scrolling::{
-    Column, ColumnWidth, ScrollDirection, ScrollingSpace, ScrollingSpaceRenderElement,
-};
+use super::scrolling::{Column, ColumnWidth, ScrollingSpace, ScrollingSpaceRenderElement};
 use super::shadow::Shadow;
 use super::tile::{Tile, TileRenderSnapshot};
 use super::{
@@ -63,31 +64,23 @@ pub struct Workspace<W: LayoutElement> {
     /// Current output of this workspace.
     output: Option<Output>,
 
-    /// Latest known output scale for this workspace.
+    /// Latest known output scale, view size and working area for this workspace, together with the
+    /// orientation that interprets them.
     ///
-    /// This should be set from the current workspace output, or, if all outputs have been
-    /// disconnected, preserved until a new output is connected.
-    scale: smithay::output::Scale,
+    /// The scale and view size should be taken from the current workspace output, and the working
+    /// area computed from it; or, if all outputs have been disconnected, preserved until a new
+    /// output is connected. The working area is not rounded to physical pixels; it is similar to
+    /// the view size, but takes into account things like layer shell exclusive zones.
+    ///
+    /// This geometry is physical, unlike the transposed geometry `ScrollingSpace` stores, so
+    /// `dims.axis()` applies to it directly.
+    dims: Dims,
 
     /// Latest known output transform for this workspace.
     ///
     /// This should be set from the current workspace output, or, if all outputs have been
     /// disconnected, preserved until a new output is connected.
     transform: Transform,
-
-    /// Latest known view size for this workspace.
-    ///
-    /// This should be computed from the current workspace output size, or, if all outputs have
-    /// been disconnected, preserved until a new output is connected.
-    view_size: Size<f64, Logical>,
-
-    /// Latest known working area for this workspace.
-    ///
-    /// Not rounded to physical pixels.
-    ///
-    /// This is similar to view size, but takes into account things like layer shell exclusive
-    /// zones.
-    working_area: Rectangle<f64, Logical>,
 
     /// This workspace's shadow in the overview.
     shadow: Shadow,
@@ -235,21 +228,9 @@ impl<W: LayoutElement> Workspace<W> {
         let view_size = output_size(&output);
         let working_area = compute_working_area(&output);
 
-        let scrolling = ScrollingSpace::new(
-            view_size,
-            working_area,
-            scale.fractional_scale(),
-            clock.clone(),
-            options.clone(),
-        );
-
-        let floating = FloatingSpace::new(
-            view_size,
-            working_area,
-            scale.fractional_scale(),
-            clock.clone(),
-            options.clone(),
-        );
+        let dims = Dims::new(scale, view_size, working_area, options.layout.orientation);
+        let scrolling = ScrollingSpace::new(dims, clock.clone(), options.clone());
+        let floating = FloatingSpace::new(dims, clock.clone(), options.clone());
 
         let shadow_config =
             compute_workspace_shadow_config(options.overview.workspace_shadow, view_size);
@@ -259,10 +240,8 @@ impl<W: LayoutElement> Workspace<W> {
             floating,
             floating_is_active: FloatingActive::No,
             original_output,
-            scale,
+            dims,
             transform: output.current_transform(),
-            view_size,
-            working_area,
             shadow: Shadow::new(shadow_config),
             background_buffer: SolidColorBuffer::new(view_size, options.layout.background_color),
             output: Some(output),
@@ -299,21 +278,9 @@ impl<W: LayoutElement> Workspace<W> {
         let view_size = Size::from((1280., 720.));
         let working_area = Rectangle::from_size(Size::from((1280., 720.)));
 
-        let scrolling = ScrollingSpace::new(
-            view_size,
-            working_area,
-            scale.fractional_scale(),
-            clock.clone(),
-            options.clone(),
-        );
-
-        let floating = FloatingSpace::new(
-            view_size,
-            working_area,
-            scale.fractional_scale(),
-            clock.clone(),
-            options.clone(),
-        );
+        let dims = Dims::new(scale, view_size, working_area, options.layout.orientation);
+        let scrolling = ScrollingSpace::new(dims, clock.clone(), options.clone());
+        let floating = FloatingSpace::new(dims, clock.clone(), options.clone());
 
         let shadow_config =
             compute_workspace_shadow_config(options.overview.workspace_shadow, view_size);
@@ -323,11 +290,9 @@ impl<W: LayoutElement> Workspace<W> {
             floating,
             floating_is_active: FloatingActive::No,
             output: None,
-            scale,
+            dims,
             transform: Transform::Normal,
             original_output,
-            view_size,
-            working_area,
             shadow: Shadow::new(shadow_config),
             background_buffer: SolidColorBuffer::new(view_size, options.layout.background_color),
             clock,
@@ -347,6 +312,14 @@ impl<W: LayoutElement> Workspace<W> {
         self.id
     }
 
+    pub fn orientation(&self) -> Orientation {
+        self.dims.orientation()
+    }
+
+    pub(in crate::layout) fn axis(&self) -> AxisMap {
+        self.dims.axis()
+    }
+
     pub fn name(&self) -> Option<&String> {
         self.name.as_ref()
     }
@@ -360,7 +333,7 @@ impl<W: LayoutElement> Workspace<W> {
     }
 
     pub fn scale(&self) -> smithay::output::Scale {
-        self.scale
+        self.dims.scale()
     }
 
     pub fn advance_animations(&mut self) {
@@ -380,7 +353,7 @@ impl<W: LayoutElement> Workspace<W> {
         self.scrolling
             .update_render_elements(is_active && !self.floating_is_active.get(), layer);
 
-        let view_rect = Rectangle::from_size(self.view_size);
+        let view_rect = Rectangle::from_size(self.dims.view_size());
         self.floating.update_render_elements(
             is_active && self.floating_is_active.get(),
             view_rect,
@@ -389,39 +362,37 @@ impl<W: LayoutElement> Workspace<W> {
 
         if layer.is_normal() {
             self.shadow.update_render_elements(
-                self.view_size,
+                self.dims.view_size(),
                 true,
                 CornerRadius::default(),
-                self.scale.fractional_scale(),
+                self.dims.fractional_scale(),
                 1.,
             );
         }
     }
 
     pub fn update_config(&mut self, base_options: Rc<Options>) {
-        let scale = self.scale.fractional_scale();
+        let scale = self.dims.fractional_scale();
         let options = Rc::new(
             Options::clone(&base_options)
                 .with_merged_layout(self.layout_config.as_ref())
                 .adjusted_for_scale(scale),
         );
 
-        self.scrolling.update_config(
-            self.view_size,
-            self.working_area,
-            self.scale.fractional_scale(),
-            options.clone(),
+        // The orientation can change with the options, so rebuild dims from them.
+        self.dims = Dims::new(
+            self.dims.scale(),
+            self.dims.view_size(),
+            self.dims.working_area(),
+            options.layout.orientation,
         );
+        self.scrolling.update_config(self.dims, options.clone());
+        self.floating.update_config(self.dims, options.clone());
 
-        self.floating.update_config(
-            self.view_size,
-            self.working_area,
-            self.scale.fractional_scale(),
-            options.clone(),
+        let shadow_config = compute_workspace_shadow_config(
+            options.overview.workspace_shadow,
+            self.dims.view_size(),
         );
-
-        let shadow_config =
-            compute_workspace_shadow_config(options.overview.workspace_shadow, self.view_size);
         self.shadow.update_config(shadow_config);
 
         self.background_buffer
@@ -523,7 +494,7 @@ impl<W: LayoutElement> Workspace<W> {
 
     fn enter_output_for_window(&self, window: &W) {
         if let Some(output) = &self.output {
-            window.set_preferred_scale_transform(self.scale, self.transform);
+            window.set_preferred_scale_transform(self.dims.scale(), self.transform);
             window.output_enter(output);
         }
     }
@@ -544,37 +515,30 @@ impl<W: LayoutElement> Workspace<W> {
         size: Size<f64, Logical>,
         working_area: Rectangle<f64, Logical>,
     ) {
+        let old_scale = self.dims.scale();
         let scale_transform_changed = self.transform != transform
-            || self.scale.integer_scale() != scale.integer_scale()
-            || self.scale.fractional_scale() != scale.fractional_scale();
-        if !scale_transform_changed && self.view_size == size && self.working_area == working_area {
+            || old_scale.integer_scale() != scale.integer_scale()
+            || old_scale.fractional_scale() != scale.fractional_scale();
+        if !scale_transform_changed
+            && self.dims.view_size() == size
+            && self.dims.working_area() == working_area
+        {
             return;
         }
 
-        let fractional_scale_changed = self.scale.fractional_scale() != scale.fractional_scale();
+        let fractional_scale_changed = old_scale.fractional_scale() != scale.fractional_scale();
 
-        self.scale = scale;
+        self.dims = Dims::new(scale, size, working_area, self.dims.orientation());
         self.transform = transform;
-        self.view_size = size;
-        self.working_area = working_area;
 
         if fractional_scale_changed {
             // Options need to be recomputed for the new scale.
             self.update_config(self.base_options.clone());
         } else {
             // Pass our existing options as is.
-            self.scrolling.update_config(
-                size,
-                working_area,
-                scale.fractional_scale(),
-                self.options.clone(),
-            );
-            self.floating.update_config(
-                size,
-                working_area,
-                scale.fractional_scale(),
-                self.options.clone(),
-            );
+            self.scrolling
+                .update_config(self.dims, self.options.clone());
+            self.floating.update_config(self.dims, self.options.clone());
 
             let shadow_config =
                 compute_workspace_shadow_config(self.options.overview.workspace_shadow, size);
@@ -585,20 +549,20 @@ impl<W: LayoutElement> Workspace<W> {
 
         if scale_transform_changed {
             for window in self.windows() {
-                window.set_preferred_scale_transform(self.scale, self.transform);
+                window.set_preferred_scale_transform(self.dims.scale(), self.transform);
             }
         }
     }
 
     pub fn view_size(&self) -> Size<f64, Logical> {
-        self.view_size
+        self.dims.view_size()
     }
 
     pub fn make_tile(&self, window: W) -> Tile<W> {
         Tile::new(
             window,
-            self.view_size,
-            self.scale.fractional_scale(),
+            self.dims.view_size(),
+            self.dims.fractional_scale(),
             self.clock.clone(),
             self.options.clone(),
         )
@@ -789,29 +753,39 @@ impl<W: LayoutElement> Workspace<W> {
         Some(column)
     }
 
-    pub fn resolve_default_width(
+    /// Resolves the default size along the group's main axis (the axis `new_window_size`'s
+    /// `width` parameter feeds for tiling: physical width on horizontal, physical height on
+    /// vertical). `default-group-width`/`default-group-height` are two spellings of the same
+    /// main-axis default, picked by whichever name matches the current orientation.
+    pub fn resolve_default_main_span(
         &self,
-        default_width: Option<Option<PresetSize>>,
+        default_main_span: Option<Option<PresetSize>>,
         is_floating: bool,
     ) -> Option<PresetSize> {
-        match default_width {
-            Some(Some(width)) => Some(width),
+        match default_main_span {
+            Some(Some(span)) => Some(span),
             Some(None) => None,
             None if is_floating => None,
-            None => self.options.layout.default_column_width,
+            None => match self.orientation() {
+                Orientation::Horizontal => self.options.layout.default_group_width,
+                Orientation::Vertical => self.options.layout.default_group_height,
+            },
         }
     }
 
-    pub fn resolve_default_height(
+    /// Resolves the default size along the group's cross axis (the axis `new_window_size`'s
+    /// `height` parameter feeds for tiling). There is no global cross-axis default, on either
+    /// orientation.
+    pub fn resolve_default_cross_span(
         &self,
-        default_height: Option<Option<PresetSize>>,
+        default_cross_span: Option<Option<PresetSize>>,
         is_floating: bool,
     ) -> Option<PresetSize> {
-        match default_height {
-            Some(Some(height)) => Some(height),
+        match default_cross_span {
+            Some(Some(span)) => Some(span),
             Some(None) => None,
             None if is_floating => None,
-            // We don't have a global default at the moment.
+            // We don't have a global cross-axis default at the moment.
             None => None,
         }
     }
@@ -856,7 +830,7 @@ impl<W: LayoutElement> Workspace<W> {
         rules: &ResolvedWindowRules,
     ) {
         window.with_surfaces(|surface, data| {
-            send_scale_transform(surface, data, self.scale, self.transform);
+            send_scale_transform(surface, data, self.dims.scale(), self.transform);
         });
 
         let toplevel = window.toplevel().expect("no x11 support");
@@ -867,9 +841,9 @@ impl<W: LayoutElement> Workspace<W> {
         });
         toplevel.with_pending_state(|state| {
             if state.states.contains(xdg_toplevel::State::Fullscreen) {
-                state.size = Some(self.view_size.to_i32_round());
+                state.size = Some(self.dims.view_size().to_i32_round());
             } else if state.states.contains(xdg_toplevel::State::Maximized) {
-                state.size = Some(self.working_area.size.to_i32_round());
+                state.size = Some(self.dims.working_area().size.to_i32_round());
             } else {
                 let size =
                     self.new_window_size(width, height, is_floating, rules, (min_size, max_size));
@@ -889,7 +863,10 @@ impl<W: LayoutElement> Workspace<W> {
         window: &W,
         width: Option<PresetSize>,
     ) -> ColumnWidth {
-        let width = width.unwrap_or_else(|| PresetSize::Fixed(window.size().w));
+        let width = width.unwrap_or_else(|| {
+            let fixed = self.axis().size_main(window.size());
+            PresetSize::Fixed(fixed)
+        });
         match width {
             PresetSize::Fixed(fixed) => {
                 let mut fixed = f64::from(fixed);
@@ -909,7 +886,8 @@ impl<W: LayoutElement> Workspace<W> {
 
     pub fn focus_left(&mut self) -> bool {
         if self.floating_is_active.get() {
-            self.floating.focus_left()
+            self.floating
+                .focus_main(self.axis(), AxisDirection::Backward)
         } else {
             self.scrolling.focus_left()
         }
@@ -917,7 +895,8 @@ impl<W: LayoutElement> Workspace<W> {
 
     pub fn focus_right(&mut self) -> bool {
         if self.floating_is_active.get() {
-            self.floating.focus_right()
+            self.floating
+                .focus_main(self.axis(), AxisDirection::Forward)
         } else {
             self.scrolling.focus_right()
         }
@@ -925,7 +904,7 @@ impl<W: LayoutElement> Workspace<W> {
 
     pub fn focus_column_first(&mut self) {
         if self.floating_is_active.get() {
-            self.floating.focus_leftmost();
+            self.floating.focus_main_edge(self.axis(), AxisEdge::Start);
         } else {
             self.scrolling.focus_column_first();
         }
@@ -933,21 +912,9 @@ impl<W: LayoutElement> Workspace<W> {
 
     pub fn focus_column_last(&mut self) {
         if self.floating_is_active.get() {
-            self.floating.focus_rightmost();
+            self.floating.focus_main_edge(self.axis(), AxisEdge::End);
         } else {
             self.scrolling.focus_column_last();
-        }
-    }
-
-    pub fn focus_column_right_or_first(&mut self) {
-        if !self.focus_right() {
-            self.focus_column_first();
-        }
-    }
-
-    pub fn focus_column_left_or_last(&mut self) {
-        if !self.focus_left() {
-            self.focus_column_last();
         }
     }
 
@@ -967,7 +934,8 @@ impl<W: LayoutElement> Workspace<W> {
 
     pub fn focus_down(&mut self) -> bool {
         if self.floating_is_active.get() {
-            self.floating.focus_down()
+            self.floating
+                .focus_cross(self.axis(), AxisDirection::Forward)
         } else {
             self.scrolling.focus_down()
         }
@@ -975,75 +943,76 @@ impl<W: LayoutElement> Workspace<W> {
 
     pub fn focus_up(&mut self) -> bool {
         if self.floating_is_active.get() {
-            self.floating.focus_up()
+            self.floating
+                .focus_cross(self.axis(), AxisDirection::Backward)
         } else {
             self.scrolling.focus_up()
         }
     }
 
-    pub fn focus_down_or_left(&mut self) {
+    fn focus_window_edge(&mut self, edge: AxisEdge) {
         if self.floating_is_active.get() {
-            self.floating.focus_down();
+            self.floating.focus_cross_edge(self.axis(), edge);
         } else {
-            self.scrolling.focus_down_or_left();
+            match edge {
+                AxisEdge::Start => self.scrolling.focus_top(),
+                AxisEdge::End => self.scrolling.focus_bottom(),
+            }
         }
     }
 
-    pub fn focus_down_or_right(&mut self) {
-        if self.floating_is_active.get() {
-            self.floating.focus_down();
-        } else {
-            self.scrolling.focus_down_or_right();
-        }
+    pub fn focus_window_first(&mut self) {
+        self.focus_window_edge(AxisEdge::Start);
     }
 
-    pub fn focus_up_or_left(&mut self) {
-        if self.floating_is_active.get() {
-            self.floating.focus_up();
-        } else {
-            self.scrolling.focus_up_or_left();
-        }
+    pub fn focus_window_last(&mut self) {
+        self.focus_window_edge(AxisEdge::End);
     }
 
-    pub fn focus_up_or_right(&mut self) {
-        if self.floating_is_active.get() {
-            self.floating.focus_up();
-        } else {
-            self.scrolling.focus_up_or_right();
+    pub fn focus_window_edge_in_direction(&mut self, dir: Direction) {
+        match self.axis().cross_direction(dir) {
+            Some(AxisDirection::Backward) => self.focus_window_edge(AxisEdge::Start),
+            Some(AxisDirection::Forward) => self.focus_window_edge(AxisEdge::End),
+            None => (),
         }
     }
 
     pub fn focus_window_top(&mut self) {
-        if self.floating_is_active.get() {
-            self.floating.focus_topmost();
-        } else {
-            self.scrolling.focus_top();
-        }
+        self.focus_window_edge_in_direction(Direction::Up);
     }
 
     pub fn focus_window_bottom(&mut self) {
-        if self.floating_is_active.get() {
-            self.floating.focus_bottommost();
-        } else {
-            self.scrolling.focus_bottom();
-        }
+        self.focus_window_edge_in_direction(Direction::Down);
     }
 
     pub fn focus_window_down_or_top(&mut self) {
-        if !self.focus_down() {
+        if !self.focus_window_in_direction(Direction::Down) {
             self.focus_window_top();
         }
     }
 
     pub fn focus_window_up_or_bottom(&mut self) {
-        if !self.focus_up() {
+        if !self.focus_window_in_direction(Direction::Up) {
             self.focus_window_bottom();
+        }
+    }
+
+    pub fn focus_window_right_or_leftmost(&mut self) {
+        if !self.focus_window_in_direction(Direction::Right) {
+            self.focus_window_edge_in_direction(Direction::Left);
+        }
+    }
+
+    pub fn focus_window_left_or_rightmost(&mut self) {
+        if !self.focus_window_in_direction(Direction::Left) {
+            self.focus_window_edge_in_direction(Direction::Right);
         }
     }
 
     pub fn move_left(&mut self) -> bool {
         if self.floating_is_active.get() {
-            self.floating.move_left();
+            self.floating
+                .move_main(self.axis(), AxisDirection::Backward);
             true
         } else {
             self.scrolling.move_left()
@@ -1052,7 +1021,7 @@ impl<W: LayoutElement> Workspace<W> {
 
     pub fn move_right(&mut self) -> bool {
         if self.floating_is_active.get() {
-            self.floating.move_right();
+            self.floating.move_main(self.axis(), AxisDirection::Forward);
             true
         } else {
             self.scrolling.move_right()
@@ -1082,7 +1051,8 @@ impl<W: LayoutElement> Workspace<W> {
 
     pub fn move_down(&mut self) -> bool {
         if self.floating_is_active.get() {
-            self.floating.move_down();
+            self.floating
+                .move_cross(self.axis(), AxisDirection::Forward);
             true
         } else {
             self.scrolling.move_down()
@@ -1091,10 +1061,114 @@ impl<W: LayoutElement> Workspace<W> {
 
     pub fn move_up(&mut self) -> bool {
         if self.floating_is_active.get() {
-            self.floating.move_up();
+            self.floating
+                .move_cross(self.axis(), AxisDirection::Backward);
             true
         } else {
             self.scrolling.move_up()
+        }
+    }
+
+    pub fn focus_group_in_direction(&mut self, dir: Direction) -> bool {
+        match self.axis().main_direction(dir) {
+            Some(AxisDirection::Backward) => self.focus_left(),
+            Some(AxisDirection::Forward) => self.focus_right(),
+            None => false,
+        }
+    }
+
+    pub fn move_group_in_direction(&mut self, dir: Direction) -> bool {
+        match self.axis().main_direction(dir) {
+            Some(AxisDirection::Backward) => self.move_left(),
+            Some(AxisDirection::Forward) => self.move_right(),
+            None => false,
+        }
+    }
+
+    pub fn focus_window_in_direction(&mut self, dir: Direction) -> bool {
+        match self.axis().cross_direction(dir) {
+            Some(AxisDirection::Backward) => self.focus_up(),
+            Some(AxisDirection::Forward) => self.focus_down(),
+            None => false,
+        }
+    }
+
+    pub fn move_window_in_direction(&mut self, dir: Direction) -> bool {
+        match self.axis().cross_direction(dir) {
+            Some(AxisDirection::Backward) => self.move_up(),
+            Some(AxisDirection::Forward) => self.move_down(),
+            None => false,
+        }
+    }
+
+    pub fn focus_window_or_group_in_direction(&mut self, dir: Direction) -> bool {
+        // Windows follow the cross axis and groups the main axis, so at most one of
+        // the two halves is live for any physical direction.
+        self.focus_window_in_direction(dir) || self.focus_group_in_direction(dir)
+    }
+
+    pub fn move_window_or_group_in_direction(&mut self, dir: Direction) -> bool {
+        self.move_window_in_direction(dir) || self.move_group_in_direction(dir)
+    }
+
+    pub fn focus_group_wrap_in_direction(&mut self, dir: Direction) {
+        match self.axis().main_direction(dir) {
+            Some(AxisDirection::Backward) => {
+                if !self.focus_left() {
+                    self.focus_column_last();
+                }
+            }
+            Some(AxisDirection::Forward) => {
+                if !self.focus_right() {
+                    self.focus_column_first();
+                }
+            }
+            None => (),
+        }
+    }
+
+    pub fn focus_window_or_group_in_directions(
+        &mut self,
+        window_dir: Direction,
+        group_dir: Direction,
+    ) {
+        let axis = self.axis();
+        let (Some(window_dir), Some(group_dir)) = (
+            axis.cross_direction(window_dir),
+            axis.main_direction(group_dir),
+        ) else {
+            return;
+        };
+        if self.floating_is_active.get() {
+            match window_dir {
+                AxisDirection::Backward => self.focus_up(),
+                AxisDirection::Forward => self.focus_down(),
+            };
+            return;
+        }
+        match (window_dir, group_dir) {
+            (AxisDirection::Forward, AxisDirection::Backward) => {
+                self.scrolling.focus_down_or_left()
+            }
+            (AxisDirection::Forward, AxisDirection::Forward) => {
+                self.scrolling.focus_down_or_right()
+            }
+            (AxisDirection::Backward, AxisDirection::Backward) => self.scrolling.focus_up_or_left(),
+            (AxisDirection::Backward, AxisDirection::Forward) => self.scrolling.focus_up_or_right(),
+        }
+    }
+
+    pub fn consume_or_expel_window_in_direction(&mut self, dir: Direction, window: Option<&W::Id>) {
+        match self.axis().main_direction(dir) {
+            Some(AxisDirection::Backward) => self.consume_or_expel_window_left(window),
+            Some(AxisDirection::Forward) => self.consume_or_expel_window_right(window),
+            None => (),
+        }
+    }
+
+    pub fn swap_window_in_direction(&mut self, dir: Direction) {
+        if let Some(d) = self.axis().main_direction(dir) {
+            self.swap_window_in_axis_direction(d)
         }
     }
 
@@ -1130,7 +1204,7 @@ impl<W: LayoutElement> Workspace<W> {
         self.scrolling.expel_from_column();
     }
 
-    pub fn swap_window_in_direction(&mut self, direction: ScrollDirection) {
+    pub fn swap_window_in_axis_direction(&mut self, direction: AxisDirection) {
         if self.floating_is_active.get() {
             return;
         }
@@ -1176,9 +1250,26 @@ impl<W: LayoutElement> Workspace<W> {
         self.scrolling.center_visible_columns();
     }
 
+    // Width names a physical width: the group's span is one only on a horizontal strip. The
+    // height family below mirrors it on vertical. The floating branch keeps its axis-mapped
+    // behavior, so on vertical the height actions drive floating main size.
     pub fn toggle_width(&mut self, forwards: bool) {
+        if self.orientation() != Orientation::Horizontal {
+            return;
+        }
         if self.floating_is_active.get() {
-            self.floating.toggle_window_width(None, forwards);
+            self.floating.toggle_main_size(self.axis(), None, forwards);
+        } else {
+            self.scrolling.toggle_width(forwards);
+        }
+    }
+
+    pub fn toggle_height(&mut self, forwards: bool) {
+        if self.orientation() != Orientation::Vertical {
+            return;
+        }
+        if self.floating_is_active.get() {
+            self.floating.toggle_main_size(self.axis(), None, forwards);
         } else {
             self.scrolling.toggle_width(forwards);
         }
@@ -1194,8 +1285,22 @@ impl<W: LayoutElement> Workspace<W> {
     }
 
     pub fn set_column_width(&mut self, change: SizeChange) {
+        if self.orientation() != Orientation::Horizontal {
+            return;
+        }
         if self.floating_is_active.get() {
-            self.floating.set_window_width(None, change, true);
+            self.floating.set_main_size(self.axis(), None, change, true);
+        } else {
+            self.scrolling.set_window_width(None, change);
+        }
+    }
+
+    pub fn set_group_height(&mut self, change: SizeChange) {
+        if self.orientation() != Orientation::Vertical {
+            return;
+        }
+        if self.floating_is_active.get() {
+            self.floating.set_main_size(self.axis(), None, change, true);
         } else {
             self.scrolling.set_window_width(None, change);
         }
@@ -1205,7 +1310,8 @@ impl<W: LayoutElement> Workspace<W> {
         if window.map_or(self.floating_is_active.get(), |id| {
             self.floating.has_window(id)
         }) {
-            self.floating.set_window_width(window, change, true);
+            self.floating
+                .set_main_size(self.axis(), window, change, true);
         } else {
             self.scrolling.set_window_width(window, change);
         }
@@ -1215,7 +1321,8 @@ impl<W: LayoutElement> Workspace<W> {
         if window.map_or(self.floating_is_active.get(), |id| {
             self.floating.has_window(id)
         }) {
-            self.floating.set_window_height(window, change, true);
+            self.floating
+                .set_cross_size(self.axis(), window, change, true);
         } else {
             self.scrolling.set_window_height(window, change);
         }
@@ -1234,7 +1341,8 @@ impl<W: LayoutElement> Workspace<W> {
         if window.map_or(self.floating_is_active.get(), |id| {
             self.floating.has_window(id)
         }) {
-            self.floating.toggle_window_width(window, forwards);
+            self.floating
+                .toggle_main_size(self.axis(), window, forwards);
         } else {
             self.scrolling.toggle_window_width(window, forwards);
         }
@@ -1244,13 +1352,27 @@ impl<W: LayoutElement> Workspace<W> {
         if window.map_or(self.floating_is_active.get(), |id| {
             self.floating.has_window(id)
         }) {
-            self.floating.toggle_window_height(window, forwards);
+            self.floating
+                .toggle_cross_size(self.axis(), window, forwards);
         } else {
             self.scrolling.toggle_window_height(window, forwards);
         }
     }
 
     pub fn expand_column_to_available_width(&mut self) {
+        if self.orientation() != Orientation::Horizontal {
+            return;
+        }
+        if self.floating_is_active.get() {
+            return;
+        }
+        self.scrolling.expand_column_to_available_width();
+    }
+
+    pub fn expand_group_to_available_height(&mut self) {
+        if self.orientation() != Orientation::Vertical {
+            return;
+        }
         if self.floating_is_active.get() {
             return;
         }
@@ -1654,7 +1776,7 @@ impl<W: LayoutElement> Workspace<W> {
             return;
         }
 
-        let view_rect = Rectangle::from_size(self.view_size);
+        let view_rect = Rectangle::from_size(self.dims.view_size());
         let floating_focus_ring = focus_ring && self.floating_is_active();
         self.floating.render(
             ctx,
@@ -1903,16 +2025,17 @@ impl<W: LayoutElement> Workspace<W> {
         let trigger_width = config.trigger_width;
 
         // This working area intentionally does not include extra struts from Options.
-        let x = pos.x - self.working_area.loc.x;
-        let width = self.working_area.size.w;
+        let axis = self.axis();
+        let coord = axis.point_main(pos) - axis.point_main(self.dims.working_area().loc);
+        let span = axis.size_main(self.dims.working_area().size);
 
-        let x = x.clamp(0., width);
-        let trigger_width = trigger_width.clamp(0., width / 2.);
+        let coord = coord.clamp(0., span);
+        let trigger_width = trigger_width.clamp(0., span / 2.);
 
-        let delta = if x < trigger_width {
-            -(trigger_width - x)
-        } else if width - x < trigger_width {
-            trigger_width - (width - x)
+        let delta = if coord < trigger_width {
+            -(trigger_width - coord)
+        } else if span - coord < trigger_width {
+            trigger_width - (span - coord)
         } else {
             0.
         };
@@ -1978,7 +2101,7 @@ impl<W: LayoutElement> Workspace<W> {
     }
 
     pub fn working_area(&self) -> Rectangle<f64, Logical> {
-        self.working_area
+        self.dims.working_area()
     }
 
     pub fn layout_config(&self) -> Option<&niri_config::LayoutPart> {
@@ -2001,7 +2124,7 @@ impl<W: LayoutElement> Workspace<W> {
     pub fn verify_invariants(&self, move_win_id: Option<&W::Id>) {
         use approx::assert_abs_diff_eq;
 
-        let scale = self.scale.fractional_scale();
+        let scale = self.dims.fractional_scale();
         assert!(scale > 0.);
         assert!(scale.is_finite());
 
@@ -2013,23 +2136,27 @@ impl<W: LayoutElement> Workspace<W> {
             "options must be base options adjusted for scale"
         );
 
-        assert!(self.view_size.w > 0.);
-        assert!(self.view_size.h > 0.);
+        assert!(self.dims.view_size().w > 0.);
+        assert!(self.dims.view_size().h > 0.);
 
-        assert_eq!(self.background_buffer.size(), self.view_size);
+        assert_eq!(self.background_buffer.size(), self.dims.view_size());
         assert_eq!(
             self.background_buffer.color().components(),
             options.layout.background_color.to_array_unpremul(),
         );
 
-        assert_eq!(self.view_size, self.scrolling.view_size());
-        assert_eq!(self.working_area, self.scrolling.parent_area());
+        let axis = AxisMap::new(options.layout.orientation);
+        let scrolling_view_size = axis.size_in(self.dims.view_size());
+        let scrolling_parent_area = axis.rect_in(self.dims.working_area());
+
+        assert_eq!(scrolling_view_size, self.scrolling.view_size());
+        assert_eq!(scrolling_parent_area, self.scrolling.parent_area());
         assert_eq!(&self.clock, self.scrolling.clock());
         assert!(Rc::ptr_eq(&self.options, self.scrolling.options()));
         self.scrolling.verify_invariants();
 
-        assert_eq!(self.view_size, self.floating.view_size());
-        assert_eq!(self.working_area, self.floating.working_area());
+        assert_eq!(self.dims.view_size(), self.floating.view_size());
+        assert_eq!(self.dims.working_area(), self.floating.working_area());
         assert_eq!(&self.clock, self.floating.clock());
         assert!(Rc::ptr_eq(&self.options, self.floating.options()));
         self.floating.verify_invariants();

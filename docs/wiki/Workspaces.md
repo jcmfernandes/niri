@@ -4,12 +4,16 @@ Niri has dynamic workspaces that can move between monitors.
 
 Each monitor contains an independent set of workspaces arranged vertically.
 You can switch between workspaces on a monitor with `focus-workspace-down` and `focus-workspace-up`.
+
+On outputs with a vertical layout `orientation`, workspaces sit side by side instead: use `focus-workspace-left` and `focus-workspace-right` there.
+
 Empty workspaces "in the middle" automatically disappear when you switch away from them.
 
 There's always one empty workspace at the end (at the bottom) of every monitor.
 When you open a window on this empty workspace, a new empty workspace will immediately appear further below it.
 
 You can move workspaces up and down on the monitor with `move-workspace-up/down`.
+On outputs with a vertical layout `orientation`, use `move-workspace-left/right` instead.
 The way to put a window on a new workspace "in the middle" is to put it on the last (empty) workspace, then move the workspace up to where you need.
 
 Here's a visual representation that shows two monitors and their workspaces.

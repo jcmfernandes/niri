@@ -349,6 +349,8 @@ To be precise, they apply at the point when niri sends the initial configure req
 Set the default width for the new window.
 
 This works for floating windows too, despite the word "column" in the name.
+<sup>Since: next release</sup> `default-group-width` is the canonical spelling of this rule; `default-column-width` remains supported as a legacy name, and the group spelling wins if both are set.
+It sets the group's strip-span, which on a vertical-orientation workspace is the window's height on screen rather than its width.
 
 ```kdl
 // Give Blender and GIMP some guaranteed width on opening.

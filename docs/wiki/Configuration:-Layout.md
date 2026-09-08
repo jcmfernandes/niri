@@ -7,6 +7,7 @@ Here are the contents of this section at a glance:
 ```kdl
 layout {
     gaps 16
+    orientation "horizontal"
     center-focused-column "never"
     always-center-single-column
     empty-workspace-above-first
@@ -115,12 +116,48 @@ layout {
 }
 ```
 
+### `orientation`
+
+<sup>Since: next release</sup>
+
+Sets the main axis of the scrolling layout.
+
+- `"horizontal"` (the default): groups are laid out from left to right, and the view scrolls horizontally.
+- `"vertical"`: groups are laid out from top to bottom, and the view scrolls vertically.
+
+This setting also changes what niri considers the main axis for size actions and presets:
+
+- `column width` settings and actions affect the main-axis span of a column.
+- `window height` settings and actions affect the cross-axis span of a window inside a column.
+
+So in the default horizontal layout these still correspond to physical width and height, while in vertical layout they correspond to physical height and width respectively.
+
+```kdl
+layout {
+    orientation "vertical"
+}
+```
+
+On a vertical strip, groups of windows stack top-to-bottom and the view scrolls vertically; windows within a group sit side by side; workspaces sit side by side and switch horizontally.
+Directional actions are physical and act on whatever lies in that direction: for example `focus-group-down` focuses the next group on a vertical strip and does nothing on a horizontal one, where `focus-group-right` does that job.
+
+This is useful together with a per-output override to match an output rotated 90 or 270 degrees:
+
+```kdl
+output "DP-2" {
+    transform "270"
+    layout {
+        orientation "vertical"
+    }
+}
+```
+
 ### `center-focused-column`
 
 When to center a column when changing focus.
 This can be set to:
 
-- `"never"`: no special centering, focusing an off-screen column will scroll it to the left or right edge of the screen. This is the default.
+- `"never"`: no special centering, focusing an off-screen column will scroll it to the start or end edge of the screen. This is the default.
 - `"always"`, the focused column will always be centered.
 - `"on-overflow"`, focusing a column will center it if it doesn't fit on screen together with the previously focused column.
 
@@ -176,14 +213,15 @@ layout {
 
 ### `preset-column-widths`
 
-Set the widths that the `switch-preset-column-width` action (Mod+R) toggles between.
+Set the main-axis spans that the `switch-preset-column-width` action (Mod+R) toggles between.
 <sup>Since: 25.08</sup> You can use the `switch-preset-column-width-back` action (Mod+Shift+R) to toggle in reverse.
+<sup>Since: next release</sup> `preset-group-widths` is the canonical spelling of this option; `preset-column-widths` remains supported as a legacy name.
 
-`proportion` sets the width as a fraction of the output width, taking gaps into account.
-For example, you can perfectly fit four windows sized `proportion 0.25` on an output, regardless of the gaps setting.
-The default preset widths are <sup>1</sup>&frasl;<sub>3</sub>, <sup>1</sup>&frasl;<sub>2</sub> and <sup>2</sup>&frasl;<sub>3</sub> of the output.
+`proportion` sets the span as a fraction of the output along the main axis, taking gaps into account.
+For example, you can perfectly fit four windows sized `proportion 0.25` along the main axis of an output, regardless of the gaps setting.
+The default preset spans are <sup>1</sup>&frasl;<sub>3</sub>, <sup>1</sup>&frasl;<sub>2</sub> and <sup>2</sup>&frasl;<sub>3</sub> of the output along the main axis.
 
-`fixed` sets the window width in logical pixels exactly.
+`fixed` sets the window span on the main axis in logical pixels exactly.
 
 ```kdl
 layout {
@@ -199,43 +237,101 @@ layout {
 
 ### `default-column-width`
 
-Set the default width of the new windows.
+Set the default main-axis span of new windows.
 
 The syntax is the same as in `preset-column-widths` above.
+<sup>Since: next release</sup> `default-group-width` is the canonical spelling of this option; `default-column-width` remains supported as a legacy name.
+This option, like `preset-group-widths`, is read by horizontal-orientation workspaces; `default-group-height` below is read by vertical ones.
+In a [window rule](./Configuration:-Window-Rules.md#default-column-width), `default-column-width`/`default-group-width` set the group's strip-span; on a vertical-orientation workspace, that strip-span is the window's height on screen.
 
 ```kdl
 layout {
-    // Open new windows sized 1/3 of the output.
+    // Open new windows sized 1/3 of the output along the main axis.
     default-column-width { proportion 0.33333; }
 }
 ```
 
-You can also leave the brackets empty, then the windows themselves will decide their initial width.
+You can also leave the brackets empty, then the windows themselves will decide their initial main-axis span.
 
 ```kdl
 layout {
-    // New windows decide their initial width themselves.
+    // New windows decide their initial main-axis span themselves.
     default-column-width {}
 }
 ```
 
 > [!NOTE]
-> `default-column-width {}` causes niri to send a (0, H) size in the initial configure request.
+> `default-column-width {}` causes niri to send an initial configure request with the main-axis span left at 0 and the cross-axis span set normally.
+>
+> In the default horizontal layout this is `(0, H)`. With `orientation "vertical"`, this becomes `(W, 0)`.
 >
 > This is a bit [unclearly defined](https://gitlab.freedesktop.org/wayland/wayland-protocols/-/issues/155) in the Wayland protocol, so some clients may misinterpret it.
 > Either way, `default-column-width {}` is most useful for specific windows, in form of a [window rule](./Configuration:-Window-Rules.md#default-column-width) with the same syntax.
+
+### `preset-group-heights`
+
+<sup>Since: next release</sup>
+
+Set the main-axis spans that the `switch-preset-group-height` action toggles between.
+You can use the `switch-preset-group-height-back` action to toggle in reverse.
+This option is read by vertical-orientation workspaces; `preset-group-widths`/`preset-column-widths` above are read by horizontal ones, and also by floating windows on vertical ones (see the `switch-preset-window-height` note in `preset-window-heights` below).
+`preset-group-heights` applies to tiled groups only: for a floating window on a vertical-orientation workspace, `switch-preset-group-height` cycles `preset-window-heights` below instead.
+
+`proportion` sets the span as a fraction of the output along the main axis, taking gaps into account.
+The default preset spans are <sup>1</sup>&frasl;<sub>3</sub>, <sup>1</sup>&frasl;<sub>2</sub> and <sup>2</sup>&frasl;<sub>3</sub> of the output along the main axis.
+
+`fixed` sets the window span on the main axis in logical pixels exactly.
+
+```kdl
+layout {
+    // On a vertical-orientation workspace, cycle between 1/3, 1/2, 2/3
+    // of the output, and a fixed 720 logical pixels.
+    preset-group-heights {
+        proportion 0.33333
+        proportion 0.5
+        proportion 0.66667
+        fixed 720
+    }
+}
+```
+
+### `default-group-height`
+
+<sup>Since: next release</sup>
+
+Set the default main-axis span of new windows, on a vertical-orientation workspace.
+
+The syntax is the same as in `preset-group-heights` above.
+This option is read by vertical-orientation workspaces; `default-column-width`/`default-group-width` above are read by horizontal ones.
+
+```kdl
+layout {
+    // On a vertical-orientation workspace, open new windows sized
+    // 1/3 of the output along the main axis.
+    default-group-height { proportion 0.33333; }
+}
+```
+
+You can also leave the brackets empty, then the windows themselves will decide their initial main-axis span, the same way `default-column-width {}` does on a horizontal-orientation workspace.
+
+```kdl
+layout {
+    default-group-height {}
+}
+```
 
 ### `preset-window-heights`
 
 <sup>Since: 0.1.9</sup>
 
-Set the heights that the `switch-preset-window-height` action (Mod+Ctrl+Shift+R) toggles between.
+Set the cross-axis spans that the `switch-preset-window-height` action (Mod+Ctrl+Shift+R) toggles between.
 <sup>Since: 25.08</sup> You can use the `switch-preset-window-height-back` action (not bound by default) to toggle in reverse.
+<sup>Since: next release</sup> For a floating window on a vertical-orientation workspace, `switch-preset-window-height` cycles `preset-group-widths` (`preset-column-widths` above) instead, mirroring how `switch-preset-group-height` cycles this option for floating windows.
 
-`proportion` sets the height as a fraction of the output height, taking gaps into account.
-The default preset heights are <sup>1</sup>&frasl;<sub>3</sub>, <sup>1</sup>&frasl;<sub>2</sub> and <sup>2</sup>&frasl;<sub>3</sub> of the output.
+`proportion` sets the span as a fraction of the output along the cross axis, taking gaps into account.
+The default preset cross-axis spans are <sup>1</sup>&frasl;<sub>3</sub>, <sup>1</sup>&frasl;<sub>2</sub> and <sup>2</sup>&frasl;<sub>3</sub> of the output along the cross axis.
 
-`fixed` sets the height in logical pixels exactly.
+`fixed` sets the cross-axis span in logical pixels exactly.
 
 ```kdl
 layout {

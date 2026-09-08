@@ -1,0 +1,305 @@
+use niri_config::Orientation;
+use smithay::utils::{Coordinate, Logical, Point, Rectangle, Size};
+
+use crate::utils::ResizeEdge;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AxisDirection {
+    Backward,
+    Forward,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AxisEdge {
+    Start,
+    End,
+}
+
+/// A physical screen direction, as the user perceives it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Direction {
+    Left,
+    Right,
+    Up,
+    Down,
+}
+
+/// Which physical axis of a 2D rectangle an operation should affect.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PhysicalAxis {
+    Width,
+    Height,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct AxisMap {
+    main_axis: Orientation,
+}
+
+impl AxisMap {
+    pub const fn new(main_axis: Orientation) -> Self {
+        Self { main_axis }
+    }
+
+    pub const fn main_axis(self) -> Orientation {
+        self.main_axis
+    }
+
+    pub const fn is_vertical(self) -> bool {
+        matches!(self.main_axis, Orientation::Vertical)
+    }
+
+    pub fn point_in<N: Coordinate>(self, point: Point<N, Logical>) -> Point<N, Logical> {
+        if self.is_vertical() {
+            Point::from((point.y, point.x))
+        } else {
+            point
+        }
+    }
+
+    pub fn point_out<N: Coordinate>(self, point: Point<N, Logical>) -> Point<N, Logical> {
+        self.point_in(point)
+    }
+
+    pub fn size_in<N: Coordinate>(self, size: Size<N, Logical>) -> Size<N, Logical> {
+        if self.is_vertical() {
+            Size::from((size.h, size.w))
+        } else {
+            size
+        }
+    }
+
+    pub fn size_out<N: Coordinate>(self, size: Size<N, Logical>) -> Size<N, Logical> {
+        self.size_in(size)
+    }
+
+    pub fn point_main<N: Copy>(self, point: Point<N, Logical>) -> N {
+        if self.is_vertical() {
+            point.y
+        } else {
+            point.x
+        }
+    }
+
+    pub fn point_cross<N: Copy>(self, point: Point<N, Logical>) -> N {
+        if self.is_vertical() {
+            point.x
+        } else {
+            point.y
+        }
+    }
+
+    pub fn map_main<T, U>(
+        self,
+        target: &mut T,
+        physical_horizontal: impl FnOnce(&mut T) -> U,
+        physical_vertical: impl FnOnce(&mut T) -> U,
+    ) -> U {
+        if self.is_vertical() {
+            physical_vertical(target)
+        } else {
+            physical_horizontal(target)
+        }
+    }
+
+    pub fn map_cross<T, U>(
+        self,
+        target: &mut T,
+        physical_horizontal: impl FnOnce(&mut T) -> U,
+        physical_vertical: impl FnOnce(&mut T) -> U,
+    ) -> U {
+        if self.is_vertical() {
+            physical_horizontal(target)
+        } else {
+            physical_vertical(target)
+        }
+    }
+
+    pub fn size_main<N: Copy>(self, size: Size<N, Logical>) -> N {
+        if self.is_vertical() {
+            size.h
+        } else {
+            size.w
+        }
+    }
+
+    pub fn size_cross<N: Copy>(self, size: Size<N, Logical>) -> N {
+        if self.is_vertical() {
+            size.w
+        } else {
+            size.h
+        }
+    }
+
+    pub fn rect_in<N: Coordinate>(self, rect: Rectangle<N, Logical>) -> Rectangle<N, Logical> {
+        Rectangle::new(self.point_in(rect.loc), self.size_in(rect.size))
+    }
+
+    pub fn rect_out<N: Coordinate>(self, rect: Rectangle<N, Logical>) -> Rectangle<N, Logical> {
+        self.rect_in(rect)
+    }
+
+    pub fn point_from_main_cross<N: Coordinate>(self, main: N, cross: N) -> Point<N, Logical> {
+        self.point_out(Point::from((main, cross)))
+    }
+
+    pub fn size_from_main_cross<N: Coordinate>(self, main: N, cross: N) -> Size<N, Logical> {
+        self.size_out(Size::from((main, cross)))
+    }
+
+    /// A vector along the main axis with magnitude `main` (cross is zero).
+    pub fn main_vec<N: Coordinate>(self, main: N) -> Point<N, Logical> {
+        self.point_from_main_cross(main, N::from_f64(0.))
+    }
+
+    /// A vector along the cross axis with magnitude `cross` (main is zero).
+    pub fn cross_vec<N: Coordinate>(self, cross: N) -> Point<N, Logical> {
+        self.point_from_main_cross(N::from_f64(0.), cross)
+    }
+
+    pub fn resize_edges_in(self, edges: ResizeEdge) -> ResizeEdge {
+        if !self.is_vertical() {
+            return edges;
+        }
+
+        let mut mapped = ResizeEdge::empty();
+        if edges.contains(ResizeEdge::LEFT) {
+            mapped |= ResizeEdge::TOP;
+        }
+        if edges.contains(ResizeEdge::RIGHT) {
+            mapped |= ResizeEdge::BOTTOM;
+        }
+        if edges.contains(ResizeEdge::TOP) {
+            mapped |= ResizeEdge::LEFT;
+        }
+        if edges.contains(ResizeEdge::BOTTOM) {
+            mapped |= ResizeEdge::RIGHT;
+        }
+        mapped
+    }
+
+    pub fn resize_edges_out(self, edges: ResizeEdge) -> ResizeEdge {
+        self.resize_edges_in(edges)
+    }
+
+    /// Resolves a physical direction along the main axis.
+    ///
+    /// Returns `None` when the direction does not lie on the main axis; directional actions
+    /// treat that as "nothing there" and do nothing.
+    pub fn main_direction(self, dir: Direction) -> Option<AxisDirection> {
+        match (self.main_axis, dir) {
+            (Orientation::Horizontal, Direction::Left) => Some(AxisDirection::Backward),
+            (Orientation::Horizontal, Direction::Right) => Some(AxisDirection::Forward),
+            (Orientation::Vertical, Direction::Up) => Some(AxisDirection::Backward),
+            (Orientation::Vertical, Direction::Down) => Some(AxisDirection::Forward),
+            _ => None,
+        }
+    }
+
+    /// Resolves a physical direction along the cross axis.
+    pub fn cross_direction(self, dir: Direction) -> Option<AxisDirection> {
+        match (self.main_axis, dir) {
+            (Orientation::Horizontal, Direction::Up) => Some(AxisDirection::Backward),
+            (Orientation::Horizontal, Direction::Down) => Some(AxisDirection::Forward),
+            (Orientation::Vertical, Direction::Left) => Some(AxisDirection::Backward),
+            (Orientation::Vertical, Direction::Right) => Some(AxisDirection::Forward),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn main_cross_accessors_respect_axis() {
+        let horizontal = AxisMap::new(Orientation::Horizontal);
+        let vertical = AxisMap::new(Orientation::Vertical);
+
+        let point = Point::<f64, Logical>::from((3., 7.));
+        let size = Size::<f64, Logical>::from((11., 13.));
+
+        assert_eq!(horizontal.point_main(point), 3.);
+        assert_eq!(horizontal.point_cross(point), 7.);
+        assert_eq!(vertical.point_main(point), 7.);
+        assert_eq!(vertical.point_cross(point), 3.);
+
+        assert_eq!(horizontal.size_main(size), 11.);
+        assert_eq!(horizontal.size_cross(size), 13.);
+        assert_eq!(vertical.size_main(size), 13.);
+        assert_eq!(vertical.size_cross(size), 11.);
+    }
+
+    #[test]
+    fn main_cross_constructors_respect_axis() {
+        let horizontal = AxisMap::new(Orientation::Horizontal);
+        let vertical = AxisMap::new(Orientation::Vertical);
+
+        assert_eq!(
+            horizontal.point_from_main_cross(3., 7.),
+            Point::<f64, Logical>::from((3., 7.))
+        );
+        assert_eq!(
+            vertical.point_from_main_cross(3., 7.),
+            Point::<f64, Logical>::from((7., 3.))
+        );
+
+        assert_eq!(
+            horizontal.size_from_main_cross(11., 13.),
+            Size::<f64, Logical>::from((11., 13.))
+        );
+        assert_eq!(
+            vertical.size_from_main_cross(11., 13.),
+            Size::<f64, Logical>::from((13., 11.))
+        );
+    }
+
+    #[test]
+    fn map_main_and_cross_select_expected_branch() {
+        let horizontal = AxisMap::new(Orientation::Horizontal);
+        let vertical = AxisMap::new(Orientation::Vertical);
+
+        let mut value = 0;
+        horizontal.map_main(&mut value, |v| *v = 1, |v| *v = 2);
+        assert_eq!(value, 1);
+
+        horizontal.map_cross(&mut value, |v| *v = 3, |v| *v = 4);
+        assert_eq!(value, 4);
+
+        vertical.map_main(&mut value, |v| *v = 5, |v| *v = 6);
+        assert_eq!(value, 6);
+
+        vertical.map_cross(&mut value, |v| *v = 7, |v| *v = 8);
+        assert_eq!(value, 7);
+    }
+
+    #[test]
+    fn direction_resolution() {
+        use AxisDirection::{Backward, Forward};
+        use Direction::{Down, Left, Right, Up};
+
+        let h = AxisMap::new(Orientation::Horizontal);
+        let v = AxisMap::new(Orientation::Vertical);
+
+        // Horizontal: strip runs left-to-right, windows stack top-to-bottom.
+        assert_eq!(h.main_direction(Left), Some(Backward));
+        assert_eq!(h.main_direction(Right), Some(Forward));
+        assert_eq!(h.main_direction(Up), None);
+        assert_eq!(h.main_direction(Down), None);
+        assert_eq!(h.cross_direction(Up), Some(Backward));
+        assert_eq!(h.cross_direction(Down), Some(Forward));
+        assert_eq!(h.cross_direction(Left), None);
+        assert_eq!(h.cross_direction(Right), None);
+
+        // Vertical: strip runs top-to-bottom, windows sit left-to-right.
+        assert_eq!(v.main_direction(Up), Some(Backward));
+        assert_eq!(v.main_direction(Down), Some(Forward));
+        assert_eq!(v.main_direction(Left), None);
+        assert_eq!(v.main_direction(Right), None);
+        assert_eq!(v.cross_direction(Left), Some(Backward));
+        assert_eq!(v.cross_direction(Right), Some(Forward));
+        assert_eq!(v.cross_direction(Up), None);
+        assert_eq!(v.cross_direction(Down), None);
+    }
+}

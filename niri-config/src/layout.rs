@@ -14,8 +14,11 @@ pub struct Layout {
     pub shadow: Shadow,
     pub tab_indicator: TabIndicator,
     pub insert_hint: InsertHint,
-    pub preset_column_widths: Vec<PresetSize>,
-    pub default_column_width: Option<PresetSize>,
+    pub orientation: Orientation,
+    pub preset_group_widths: Vec<PresetSize>,
+    pub default_group_width: Option<PresetSize>,
+    pub preset_group_heights: Vec<PresetSize>,
+    pub default_group_height: Option<PresetSize>,
     pub preset_window_heights: Vec<PresetSize>,
     pub center_focused_column: CenterFocusedColumn,
     pub always_center_single_column: bool,
@@ -34,12 +37,22 @@ impl Default for Layout {
             shadow: Shadow::default(),
             tab_indicator: TabIndicator::default(),
             insert_hint: InsertHint::default(),
-            preset_column_widths: vec![
+            orientation: Orientation::Horizontal,
+            preset_group_widths: vec![
                 PresetSize::Proportion(1. / 3.),
                 PresetSize::Proportion(0.5),
                 PresetSize::Proportion(2. / 3.),
             ],
-            default_column_width: Some(PresetSize::Proportion(0.5)),
+            default_group_width: Some(PresetSize::Proportion(0.5)),
+            preset_group_heights: vec![
+                PresetSize::Proportion(1. / 3.),
+                PresetSize::Proportion(0.5),
+                PresetSize::Proportion(2. / 3.),
+            ],
+            // Same default proportion as default_group_width: pre-gating vertical behavior
+            // inherited the 0.5 main-span default, so the main-axis default stays 0.5
+            // regardless of which physical name it's spelled under.
+            default_group_height: Some(PresetSize::Proportion(0.5)),
             center_focused_column: CenterFocusedColumn::Never,
             always_center_single_column: false,
             empty_workspace_above_first: false,
@@ -72,7 +85,8 @@ impl MergeWith<LayoutPart> for Layout {
 
         merge_clone!(
             (self, part),
-            preset_column_widths,
+            orientation,
+            preset_group_heights,
             preset_window_heights,
             center_focused_column,
             default_column_display,
@@ -80,16 +94,44 @@ impl MergeWith<LayoutPart> for Layout {
             background_color,
         );
 
+        // Legacy spelling first, canonical (group) spelling second, so the group spelling
+        // wins if both are set.
+        if let Some(x) = &part.preset_column_widths {
+            self.preset_group_widths = x.clone();
+        }
+        if let Some(x) = &part.preset_group_widths {
+            self.preset_group_widths = x.clone();
+        }
         if let Some(x) = part.default_column_width {
-            self.default_column_width = x.0;
+            self.default_group_width = x.0;
+        }
+        if let Some(x) = part.default_group_width {
+            self.default_group_width = x.0;
+        }
+        if let Some(x) = part.default_group_height {
+            self.default_group_height = x.0;
         }
 
-        if self.preset_column_widths.is_empty() {
-            self.preset_column_widths = Layout::default().preset_column_widths;
+        if self.preset_group_widths.is_empty() {
+            self.preset_group_widths = Layout::default().preset_group_widths;
+        }
+
+        if self.preset_group_heights.is_empty() {
+            self.preset_group_heights = Layout::default().preset_group_heights;
         }
 
         if self.preset_window_heights.is_empty() {
             self.preset_window_heights = Layout::default().preset_window_heights;
+        }
+    }
+}
+
+impl Layout {
+    /// The preset list for the group's strip-span dimension under this orientation.
+    pub fn preset_group_spans(&self, orientation: Orientation) -> &[PresetSize] {
+        match orientation {
+            Orientation::Horizontal => &self.preset_group_widths,
+            Orientation::Vertical => &self.preset_group_heights,
         }
     }
 }
@@ -106,10 +148,22 @@ pub struct LayoutPart {
     pub tab_indicator: Option<TabIndicatorPart>,
     #[knuffel(child)]
     pub insert_hint: Option<InsertHintPart>,
+    #[knuffel(child, unwrap(argument))]
+    pub orientation: Option<Orientation>,
+    #[knuffel(child, unwrap(children))]
+    pub preset_group_widths: Option<Vec<PresetSize>>,
+    /// Legacy spelling of `preset-group-widths`; the group spelling wins if both are set.
     #[knuffel(child, unwrap(children))]
     pub preset_column_widths: Option<Vec<PresetSize>>,
     #[knuffel(child)]
+    pub default_group_width: Option<DefaultPresetSize>,
+    /// Legacy spelling of `default-group-width`; the group spelling wins if both are set.
+    #[knuffel(child)]
     pub default_column_width: Option<DefaultPresetSize>,
+    #[knuffel(child, unwrap(children))]
+    pub preset_group_heights: Option<Vec<PresetSize>>,
+    #[knuffel(child)]
+    pub default_group_height: Option<DefaultPresetSize>,
     #[knuffel(child, unwrap(children))]
     pub preset_window_heights: Option<Vec<PresetSize>>,
     #[knuffel(child, unwrap(argument))]
@@ -168,6 +222,13 @@ pub enum CenterFocusedColumn {
     /// Focusing a column will center it if it doesn't fit on the screen together with the
     /// previously focused column.
     OnOverflow,
+}
+
+#[derive(knuffel::DecodeScalar, Debug, Default, PartialEq, Eq, Clone, Copy)]
+pub enum Orientation {
+    #[default]
+    Horizontal,
+    Vertical,
 }
 
 impl<S> knuffel::Decode<S> for DefaultPresetSize

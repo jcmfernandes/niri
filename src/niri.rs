@@ -4311,8 +4311,17 @@ impl Niri {
             return;
         }
 
-        // Draw the hotkey overlay on top.
-        if let Some(element) = self.hotkey_overlay.render(ctx.renderer, output) {
+        // Draw the hotkey overlay on top. Its curated list of directional entries follows this
+        // output's own orientation, matching Monitor::orientation() (the overview_axis() source).
+        let hotkey_overlay_orientation = self
+            .layout
+            .monitor_for_output(output)
+            .map(|mon| mon.orientation())
+            .unwrap_or_default();
+        if let Some(element) =
+            self.hotkey_overlay
+                .render(ctx.renderer, output, hotkey_overlay_orientation)
+        {
             push(element.into());
         }
 

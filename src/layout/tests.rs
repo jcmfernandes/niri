@@ -3,8 +3,8 @@ use std::cell::{Cell, OnceCell, RefCell};
 use niri_config::utils::Flag;
 use niri_config::workspace::WorkspaceName;
 use niri_config::{
-    CenterFocusedColumn, FloatOrInt, OutputName, Struts, TabIndicatorLength, TabIndicatorPosition,
-    WorkspaceReference,
+    CenterFocusedColumn, FloatOrInt, Orientation, OutputName, Struts, TabIndicatorLength,
+    TabIndicatorPosition, WorkspaceReference,
 };
 use proptest::prelude::*;
 use proptest_derive::Arbitrary;
@@ -396,8 +396,8 @@ fn arbitrary_parent_id() -> impl Strategy<Value = Option<usize>> {
     ]
 }
 
-fn arbitrary_scroll_direction() -> impl Strategy<Value = ScrollDirection> {
-    prop_oneof![Just(ScrollDirection::Left), Just(ScrollDirection::Right)]
+fn arbitrary_orientation() -> impl Strategy<Value = Orientation> {
+    prop_oneof![Just(Orientation::Horizontal), Just(Orientation::Vertical)]
 }
 
 fn arbitrary_column_display() -> impl Strategy<Value = ColumnDisplay> {
@@ -462,42 +462,80 @@ enum Op {
         is_fullscreen: bool,
     },
     ToggleWindowedFullscreen(#[proptest(strategy = "1..=5usize")] usize),
-    FocusColumnLeft,
-    FocusColumnRight,
-    FocusColumnFirst,
-    FocusColumnLast,
-    FocusColumnRightOrFirst,
-    FocusColumnLeftOrLast,
-    FocusColumn(#[proptest(strategy = "1..=5usize")] usize),
+    FocusGroupLeft,
+    FocusGroupRight,
+    FocusGroupFirst,
+    FocusGroupLast,
+    FocusGroupRightOrFirst,
+    FocusGroupLeftOrLast,
+    FocusGroupDownOrFirst,
+    FocusGroupUpOrLast,
+    FocusGroup(#[proptest(strategy = "1..=5usize")] usize),
+    FocusGroupUp,
+    FocusGroupDown,
     FocusWindowOrMonitorUp(#[proptest(strategy = "1..=2u8")] u8),
     FocusWindowOrMonitorDown(#[proptest(strategy = "1..=2u8")] u8),
-    FocusColumnOrMonitorLeft(#[proptest(strategy = "1..=2u8")] u8),
-    FocusColumnOrMonitorRight(#[proptest(strategy = "1..=2u8")] u8),
+    FocusWindowOrMonitorLeft(#[proptest(strategy = "1..=2u8")] u8),
+    FocusWindowOrMonitorRight(#[proptest(strategy = "1..=2u8")] u8),
+    FocusGroupOrMonitorLeft(#[proptest(strategy = "1..=2u8")] u8),
+    FocusGroupOrMonitorRight(#[proptest(strategy = "1..=2u8")] u8),
+    FocusGroupOrMonitorUp(#[proptest(strategy = "1..=2u8")] u8),
+    FocusGroupOrMonitorDown(#[proptest(strategy = "1..=2u8")] u8),
     FocusWindowDown,
     FocusWindowUp,
-    FocusWindowDownOrColumnLeft,
-    FocusWindowDownOrColumnRight,
-    FocusWindowUpOrColumnLeft,
-    FocusWindowUpOrColumnRight,
+    FocusWindowLeft,
+    FocusWindowRight,
+    FocusWindowOrGroupLeft,
+    FocusWindowOrGroupRight,
+    FocusWindowOrGroupUp,
+    FocusWindowOrGroupDown,
+    FocusWindowDownOrGroupLeft,
+    FocusWindowDownOrGroupRight,
+    FocusWindowUpOrGroupLeft,
+    FocusWindowUpOrGroupRight,
+    FocusWindowRightOrGroupUp,
+    FocusWindowRightOrGroupDown,
+    FocusWindowLeftOrGroupUp,
+    FocusWindowLeftOrGroupDown,
     FocusWindowOrWorkspaceDown,
     FocusWindowOrWorkspaceUp,
+    FocusWindowOrWorkspaceLeft,
+    FocusWindowOrWorkspaceRight,
     FocusWindow(#[proptest(strategy = "1..=5usize")] usize),
-    FocusWindowInColumn(#[proptest(strategy = "1..=5u8")] u8),
+    FocusWindowInGroup(#[proptest(strategy = "1..=5u8")] u8),
     FocusWindowTop,
     FocusWindowBottom,
     FocusWindowDownOrTop,
     FocusWindowUpOrBottom,
-    MoveColumnLeft,
-    MoveColumnRight,
-    MoveColumnToFirst,
-    MoveColumnToLast,
-    MoveColumnLeftOrToMonitorLeft(#[proptest(strategy = "1..=2u8")] u8),
-    MoveColumnRightOrToMonitorRight(#[proptest(strategy = "1..=2u8")] u8),
-    MoveColumnToIndex(#[proptest(strategy = "1..=5usize")] usize),
+    FocusWindowFirst,
+    FocusWindowLast,
+    FocusWindowLeftmost,
+    FocusWindowRightmost,
+    FocusWindowRightOrLeftmost,
+    FocusWindowLeftOrRightmost,
+    MoveGroupLeft,
+    MoveGroupRight,
+    MoveGroupToFirst,
+    MoveGroupToLast,
+    MoveGroupLeftOrToMonitorLeft(#[proptest(strategy = "1..=2u8")] u8),
+    MoveGroupRightOrToMonitorRight(#[proptest(strategy = "1..=2u8")] u8),
+    MoveGroupToIndex(#[proptest(strategy = "1..=5usize")] usize),
+    MoveGroupUp,
+    MoveGroupDown,
+    MoveGroupUpOrToMonitorUp(#[proptest(strategy = "1..=2u8")] u8),
+    MoveGroupDownOrToMonitorDown(#[proptest(strategy = "1..=2u8")] u8),
     MoveWindowDown,
     MoveWindowUp,
+    MoveWindowLeft,
+    MoveWindowRight,
+    MoveWindowOrGroupLeft,
+    MoveWindowOrGroupRight,
+    MoveWindowOrGroupUp,
+    MoveWindowOrGroupDown,
     MoveWindowDownOrToWorkspaceDown,
     MoveWindowUpOrToWorkspaceUp,
+    MoveWindowRightOrToWorkspaceRight,
+    MoveWindowLeftOrToWorkspaceLeft,
     ConsumeOrExpelWindowLeft {
         #[proptest(strategy = "proptest::option::of(1..=5usize)")]
         id: Option<usize>,
@@ -506,35 +544,54 @@ enum Op {
         #[proptest(strategy = "proptest::option::of(1..=5usize)")]
         id: Option<usize>,
     },
-    ConsumeWindowIntoColumn,
-    ExpelWindowFromColumn,
-    SwapWindowInDirection(#[proptest(strategy = "arbitrary_scroll_direction()")] ScrollDirection),
-    ToggleColumnTabbedDisplay,
-    SetColumnDisplay(#[proptest(strategy = "arbitrary_column_display()")] ColumnDisplay),
-    CenterColumn,
+    ConsumeOrExpelWindowUp {
+        #[proptest(strategy = "proptest::option::of(1..=5usize)")]
+        id: Option<usize>,
+    },
+    ConsumeOrExpelWindowDown {
+        #[proptest(strategy = "proptest::option::of(1..=5usize)")]
+        id: Option<usize>,
+    },
+    ConsumeWindowIntoGroup,
+    ExpelWindowFromGroup,
+    SwapWindowLeft,
+    SwapWindowRight,
+    SwapWindowUp,
+    SwapWindowDown,
+    ToggleGroupTabbedDisplay,
+    SetGroupDisplay(#[proptest(strategy = "arbitrary_column_display()")] ColumnDisplay),
+    CenterGroup,
     CenterWindow {
         #[proptest(strategy = "proptest::option::of(1..=5usize)")]
         id: Option<usize>,
     },
-    CenterVisibleColumns,
+    CenterVisibleGroups,
     FocusWorkspaceDown,
     FocusWorkspaceUp,
+    FocusWorkspaceLeft,
+    FocusWorkspaceRight,
     FocusWorkspace(#[proptest(strategy = "0..=4usize")] usize),
     FocusWorkspaceAutoBackAndForth(#[proptest(strategy = "0..=4usize")] usize),
     FocusWorkspacePrevious,
     MoveWindowToWorkspaceDown(bool),
     MoveWindowToWorkspaceUp(bool),
+    MoveWindowToWorkspaceLeft(bool),
+    MoveWindowToWorkspaceRight(bool),
     MoveWindowToWorkspace {
         #[proptest(strategy = "proptest::option::of(1..=5usize)")]
         window_id: Option<usize>,
         #[proptest(strategy = "0..=4usize")]
         workspace_idx: usize,
     },
-    MoveColumnToWorkspaceDown(bool),
-    MoveColumnToWorkspaceUp(bool),
-    MoveColumnToWorkspace(#[proptest(strategy = "0..=4usize")] usize, bool),
+    MoveGroupToWorkspaceDown(bool),
+    MoveGroupToWorkspaceUp(bool),
+    MoveGroupToWorkspaceLeft(bool),
+    MoveGroupToWorkspaceRight(bool),
+    MoveGroupToWorkspace(#[proptest(strategy = "0..=4usize")] usize, bool),
     MoveWorkspaceDown,
     MoveWorkspaceUp,
+    MoveWorkspaceLeft,
+    MoveWorkspaceRight,
     MoveWorkspaceToIndex {
         #[proptest(strategy = "proptest::option::of(1..=5usize)")]
         ws_name: Option<usize>,
@@ -572,8 +629,10 @@ enum Op {
         target_ws_idx: Option<usize>,
         activate: bool,
     },
-    SwitchPresetColumnWidth,
-    SwitchPresetColumnWidthBack,
+    SwitchPresetGroupWidth,
+    SwitchPresetGroupWidthBack,
+    SwitchPresetGroupHeight,
+    SwitchPresetGroupHeightBack,
     SwitchPresetWindowWidth {
         #[proptest(strategy = "proptest::option::of(1..=5usize)")]
         id: Option<usize>,
@@ -590,12 +649,12 @@ enum Op {
         #[proptest(strategy = "proptest::option::of(1..=5usize)")]
         id: Option<usize>,
     },
-    MaximizeColumn,
+    MaximizeGroup,
     MaximizeWindowToEdges {
         #[proptest(strategy = "proptest::option::of(1..=5usize)")]
         id: Option<usize>,
     },
-    SetColumnWidth(#[proptest(strategy = "arbitrary_size_change()")] SizeChange),
+    SetGroupWidth(#[proptest(strategy = "arbitrary_size_change()")] SizeChange),
     SetWindowWidth {
         #[proptest(strategy = "proptest::option::of(1..=5usize)")]
         id: Option<usize>,
@@ -612,7 +671,9 @@ enum Op {
         #[proptest(strategy = "proptest::option::of(1..=5usize)")]
         id: Option<usize>,
     },
-    ExpandColumnToAvailableWidth,
+    ExpandGroupToAvailableWidth,
+    SetGroupHeight(#[proptest(strategy = "arbitrary_size_change()")] SizeChange),
+    ExpandGroupToAvailableHeight,
     ToggleWindowFloating {
         #[proptest(strategy = "proptest::option::of(1..=5usize)")]
         id: Option<usize>,
@@ -1082,13 +1143,19 @@ impl Op {
                 }
                 layout.toggle_windowed_fullscreen(&id);
             }
-            Op::FocusColumnLeft => layout.focus_left(),
-            Op::FocusColumnRight => layout.focus_right(),
-            Op::FocusColumnFirst => layout.focus_column_first(),
-            Op::FocusColumnLast => layout.focus_column_last(),
-            Op::FocusColumnRightOrFirst => layout.focus_column_right_or_first(),
-            Op::FocusColumnLeftOrLast => layout.focus_column_left_or_last(),
-            Op::FocusColumn(index) => layout.focus_column(index),
+            Op::FocusGroupLeft => layout.focus_left(),
+            Op::FocusGroupRight => layout.focus_right(),
+            Op::FocusGroupFirst => layout.focus_column_first(),
+            Op::FocusGroupLast => layout.focus_column_last(),
+            Op::FocusGroupRightOrFirst => layout.focus_column_right_or_first(),
+            Op::FocusGroupLeftOrLast => layout.focus_column_left_or_last(),
+            Op::FocusGroupDownOrFirst => {
+                layout.focus_group_wrap_in_direction(axis::Direction::Down)
+            }
+            Op::FocusGroupUpOrLast => layout.focus_group_wrap_in_direction(axis::Direction::Up),
+            Op::FocusGroup(index) => layout.focus_column(index),
+            Op::FocusGroupUp => layout.focus_group_in_direction(axis::Direction::Up),
+            Op::FocusGroupDown => layout.focus_group_in_direction(axis::Direction::Down),
             Op::FocusWindowOrMonitorUp(id) => {
                 let name = format!("output{id}");
                 let Some(output) = layout.outputs().find(|o| o.name() == name).cloned() else {
@@ -1105,7 +1172,23 @@ impl Op {
 
                 layout.focus_window_down_or_output(&output);
             }
-            Op::FocusColumnOrMonitorLeft(id) => {
+            Op::FocusWindowOrMonitorLeft(id) => {
+                let name = format!("output{id}");
+                let Some(output) = layout.outputs().find(|o| o.name() == name).cloned() else {
+                    return;
+                };
+
+                layout.focus_window_or_output_in_direction(axis::Direction::Left, &output);
+            }
+            Op::FocusWindowOrMonitorRight(id) => {
+                let name = format!("output{id}");
+                let Some(output) = layout.outputs().find(|o| o.name() == name).cloned() else {
+                    return;
+                };
+
+                layout.focus_window_or_output_in_direction(axis::Direction::Right, &output);
+            }
+            Op::FocusGroupOrMonitorLeft(id) => {
                 let name = format!("output{id}");
                 let Some(output) = layout.outputs().find(|o| o.name() == name).cloned() else {
                     return;
@@ -1113,7 +1196,7 @@ impl Op {
 
                 layout.focus_column_left_or_output(&output);
             }
-            Op::FocusColumnOrMonitorRight(id) => {
+            Op::FocusGroupOrMonitorRight(id) => {
                 let name = format!("output{id}");
                 let Some(output) = layout.outputs().find(|o| o.name() == name).cloned() else {
                     return;
@@ -1121,25 +1204,77 @@ impl Op {
 
                 layout.focus_column_right_or_output(&output);
             }
+            Op::FocusGroupOrMonitorUp(id) => {
+                let name = format!("output{id}");
+                let Some(output) = layout.outputs().find(|o| o.name() == name).cloned() else {
+                    return;
+                };
+
+                layout.focus_group_or_output_in_direction(axis::Direction::Up, &output);
+            }
+            Op::FocusGroupOrMonitorDown(id) => {
+                let name = format!("output{id}");
+                let Some(output) = layout.outputs().find(|o| o.name() == name).cloned() else {
+                    return;
+                };
+
+                layout.focus_group_or_output_in_direction(axis::Direction::Down, &output);
+            }
             Op::FocusWindowDown => layout.focus_down(),
             Op::FocusWindowUp => layout.focus_up(),
-            Op::FocusWindowDownOrColumnLeft => layout.focus_down_or_left(),
-            Op::FocusWindowDownOrColumnRight => layout.focus_down_or_right(),
-            Op::FocusWindowUpOrColumnLeft => layout.focus_up_or_left(),
-            Op::FocusWindowUpOrColumnRight => layout.focus_up_or_right(),
+            Op::FocusWindowLeft => layout.focus_window_in_direction(axis::Direction::Left),
+            Op::FocusWindowRight => layout.focus_window_in_direction(axis::Direction::Right),
+            Op::FocusWindowOrGroupLeft => {
+                layout.focus_window_or_group_in_direction(axis::Direction::Left)
+            }
+            Op::FocusWindowOrGroupRight => {
+                layout.focus_window_or_group_in_direction(axis::Direction::Right)
+            }
+            Op::FocusWindowOrGroupUp => {
+                layout.focus_window_or_group_in_direction(axis::Direction::Up)
+            }
+            Op::FocusWindowOrGroupDown => {
+                layout.focus_window_or_group_in_direction(axis::Direction::Down)
+            }
+            Op::FocusWindowDownOrGroupLeft => layout.focus_down_or_left(),
+            Op::FocusWindowDownOrGroupRight => layout.focus_down_or_right(),
+            Op::FocusWindowUpOrGroupLeft => layout.focus_up_or_left(),
+            Op::FocusWindowUpOrGroupRight => layout.focus_up_or_right(),
+            Op::FocusWindowRightOrGroupUp => layout
+                .focus_window_or_group_in_directions(axis::Direction::Right, axis::Direction::Up),
+            Op::FocusWindowRightOrGroupDown => layout
+                .focus_window_or_group_in_directions(axis::Direction::Right, axis::Direction::Down),
+            Op::FocusWindowLeftOrGroupUp => layout
+                .focus_window_or_group_in_directions(axis::Direction::Left, axis::Direction::Up),
+            Op::FocusWindowLeftOrGroupDown => layout
+                .focus_window_or_group_in_directions(axis::Direction::Left, axis::Direction::Down),
             Op::FocusWindowOrWorkspaceDown => layout.focus_window_or_workspace_down(),
             Op::FocusWindowOrWorkspaceUp => layout.focus_window_or_workspace_up(),
+            Op::FocusWindowOrWorkspaceLeft => {
+                layout.focus_window_or_workspace_in_direction(axis::Direction::Left)
+            }
+            Op::FocusWindowOrWorkspaceRight => {
+                layout.focus_window_or_workspace_in_direction(axis::Direction::Right)
+            }
             Op::FocusWindow(id) => layout.activate_window(&id),
-            Op::FocusWindowInColumn(index) => layout.focus_window_in_column(index),
+            Op::FocusWindowInGroup(index) => layout.focus_window_in_column(index),
             Op::FocusWindowTop => layout.focus_window_top(),
             Op::FocusWindowBottom => layout.focus_window_bottom(),
             Op::FocusWindowDownOrTop => layout.focus_window_down_or_top(),
             Op::FocusWindowUpOrBottom => layout.focus_window_up_or_bottom(),
-            Op::MoveColumnLeft => layout.move_left(),
-            Op::MoveColumnRight => layout.move_right(),
-            Op::MoveColumnToFirst => layout.move_column_to_first(),
-            Op::MoveColumnToLast => layout.move_column_to_last(),
-            Op::MoveColumnLeftOrToMonitorLeft(id) => {
+            Op::FocusWindowFirst => layout.focus_window_first(),
+            Op::FocusWindowLast => layout.focus_window_last(),
+            Op::FocusWindowLeftmost => layout.focus_window_edge_in_direction(axis::Direction::Left),
+            Op::FocusWindowRightmost => {
+                layout.focus_window_edge_in_direction(axis::Direction::Right)
+            }
+            Op::FocusWindowRightOrLeftmost => layout.focus_window_right_or_leftmost(),
+            Op::FocusWindowLeftOrRightmost => layout.focus_window_left_or_rightmost(),
+            Op::MoveGroupLeft => layout.move_left(),
+            Op::MoveGroupRight => layout.move_right(),
+            Op::MoveGroupToFirst => layout.move_column_to_first(),
+            Op::MoveGroupToLast => layout.move_column_to_last(),
+            Op::MoveGroupLeftOrToMonitorLeft(id) => {
                 let name = format!("output{id}");
                 let Some(output) = layout.outputs().find(|o| o.name() == name).cloned() else {
                     return;
@@ -1147,7 +1282,7 @@ impl Op {
 
                 layout.move_column_left_or_to_output(&output);
             }
-            Op::MoveColumnRightOrToMonitorRight(id) => {
+            Op::MoveGroupRightOrToMonitorRight(id) => {
                 let name = format!("output{id}");
                 let Some(output) = layout.outputs().find(|o| o.name() == name).cloned() else {
                     return;
@@ -1155,11 +1290,49 @@ impl Op {
 
                 layout.move_column_right_or_to_output(&output);
             }
-            Op::MoveColumnToIndex(index) => layout.move_column_to_index(index),
+            Op::MoveGroupToIndex(index) => layout.move_column_to_index(index),
+            Op::MoveGroupUp => layout.move_group_in_direction(axis::Direction::Up),
+            Op::MoveGroupDown => layout.move_group_in_direction(axis::Direction::Down),
+            Op::MoveGroupUpOrToMonitorUp(id) => {
+                let name = format!("output{id}");
+                let Some(output) = layout.outputs().find(|o| o.name() == name).cloned() else {
+                    return;
+                };
+
+                layout.move_group_or_to_output_in_direction(axis::Direction::Up, &output);
+            }
+            Op::MoveGroupDownOrToMonitorDown(id) => {
+                let name = format!("output{id}");
+                let Some(output) = layout.outputs().find(|o| o.name() == name).cloned() else {
+                    return;
+                };
+
+                layout.move_group_or_to_output_in_direction(axis::Direction::Down, &output);
+            }
             Op::MoveWindowDown => layout.move_down(),
             Op::MoveWindowUp => layout.move_up(),
+            Op::MoveWindowLeft => layout.move_window_in_direction(axis::Direction::Left),
+            Op::MoveWindowRight => layout.move_window_in_direction(axis::Direction::Right),
+            Op::MoveWindowOrGroupLeft => {
+                layout.move_window_or_group_in_direction(axis::Direction::Left)
+            }
+            Op::MoveWindowOrGroupRight => {
+                layout.move_window_or_group_in_direction(axis::Direction::Right)
+            }
+            Op::MoveWindowOrGroupUp => {
+                layout.move_window_or_group_in_direction(axis::Direction::Up)
+            }
+            Op::MoveWindowOrGroupDown => {
+                layout.move_window_or_group_in_direction(axis::Direction::Down)
+            }
             Op::MoveWindowDownOrToWorkspaceDown => layout.move_down_or_to_workspace_down(),
             Op::MoveWindowUpOrToWorkspaceUp => layout.move_up_or_to_workspace_up(),
+            Op::MoveWindowRightOrToWorkspaceRight => {
+                layout.move_window_or_to_workspace_in_direction(axis::Direction::Right)
+            }
+            Op::MoveWindowLeftOrToWorkspaceLeft => {
+                layout.move_window_or_to_workspace_in_direction(axis::Direction::Left)
+            }
             Op::ConsumeOrExpelWindowLeft { id } => {
                 let id = id.filter(|id| layout.has_window(id));
                 layout.consume_or_expel_window_left(id.as_ref());
@@ -1168,19 +1341,32 @@ impl Op {
                 let id = id.filter(|id| layout.has_window(id));
                 layout.consume_or_expel_window_right(id.as_ref());
             }
-            Op::ConsumeWindowIntoColumn => layout.consume_into_column(),
-            Op::ExpelWindowFromColumn => layout.expel_from_column(),
-            Op::SwapWindowInDirection(direction) => layout.swap_window_in_direction(direction),
-            Op::ToggleColumnTabbedDisplay => layout.toggle_column_tabbed_display(),
-            Op::SetColumnDisplay(display) => layout.set_column_display(display),
-            Op::CenterColumn => layout.center_column(),
+            Op::ConsumeOrExpelWindowUp { id } => {
+                let id = id.filter(|id| layout.has_window(id));
+                layout.consume_or_expel_window_in_direction(axis::Direction::Up, id.as_ref());
+            }
+            Op::ConsumeOrExpelWindowDown { id } => {
+                let id = id.filter(|id| layout.has_window(id));
+                layout.consume_or_expel_window_in_direction(axis::Direction::Down, id.as_ref());
+            }
+            Op::ConsumeWindowIntoGroup => layout.consume_into_column(),
+            Op::ExpelWindowFromGroup => layout.expel_from_column(),
+            Op::SwapWindowLeft => layout.swap_window_in_direction(axis::Direction::Left),
+            Op::SwapWindowRight => layout.swap_window_in_direction(axis::Direction::Right),
+            Op::SwapWindowUp => layout.swap_window_in_direction(axis::Direction::Up),
+            Op::SwapWindowDown => layout.swap_window_in_direction(axis::Direction::Down),
+            Op::ToggleGroupTabbedDisplay => layout.toggle_column_tabbed_display(),
+            Op::SetGroupDisplay(display) => layout.set_column_display(display),
+            Op::CenterGroup => layout.center_column(),
             Op::CenterWindow { id } => {
                 let id = id.filter(|id| layout.has_window(id));
                 layout.center_window(id.as_ref());
             }
-            Op::CenterVisibleColumns => layout.center_visible_columns(),
+            Op::CenterVisibleGroups => layout.center_visible_columns(),
             Op::FocusWorkspaceDown => layout.switch_workspace_down(),
             Op::FocusWorkspaceUp => layout.switch_workspace_up(),
+            Op::FocusWorkspaceLeft => layout.switch_workspace_in_direction(axis::Direction::Left),
+            Op::FocusWorkspaceRight => layout.switch_workspace_in_direction(axis::Direction::Right),
             Op::FocusWorkspace(idx) => layout.switch_workspace(idx),
             Op::FocusWorkspaceAutoBackAndForth(idx) => {
                 layout.switch_workspace_auto_back_and_forth(idx)
@@ -1188,6 +1374,12 @@ impl Op {
             Op::FocusWorkspacePrevious => layout.switch_workspace_previous(),
             Op::MoveWindowToWorkspaceDown(focus) => layout.move_to_workspace_down(focus),
             Op::MoveWindowToWorkspaceUp(focus) => layout.move_to_workspace_up(focus),
+            Op::MoveWindowToWorkspaceLeft(focus) => {
+                layout.move_to_workspace_in_direction(axis::Direction::Left, focus)
+            }
+            Op::MoveWindowToWorkspaceRight(focus) => {
+                layout.move_to_workspace_in_direction(axis::Direction::Right, focus)
+            }
             Op::MoveWindowToWorkspace {
                 window_id,
                 workspace_idx,
@@ -1195,9 +1387,15 @@ impl Op {
                 let window_id = window_id.filter(|id| layout.has_window(id));
                 layout.move_to_workspace(window_id.as_ref(), workspace_idx, ActivateWindow::Smart);
             }
-            Op::MoveColumnToWorkspaceDown(focus) => layout.move_column_to_workspace_down(focus),
-            Op::MoveColumnToWorkspaceUp(focus) => layout.move_column_to_workspace_up(focus),
-            Op::MoveColumnToWorkspace(idx, focus) => layout.move_column_to_workspace(idx, focus),
+            Op::MoveGroupToWorkspaceDown(focus) => layout.move_column_to_workspace_down(focus),
+            Op::MoveGroupToWorkspaceUp(focus) => layout.move_column_to_workspace_up(focus),
+            Op::MoveGroupToWorkspaceLeft(focus) => {
+                layout.move_column_to_workspace_in_direction(axis::Direction::Left, focus)
+            }
+            Op::MoveGroupToWorkspaceRight(focus) => {
+                layout.move_column_to_workspace_in_direction(axis::Direction::Right, focus)
+            }
+            Op::MoveGroupToWorkspace(idx, focus) => layout.move_column_to_workspace(idx, focus),
             Op::MoveWindowToOutput {
                 window_id,
                 output_id: id,
@@ -1232,6 +1430,8 @@ impl Op {
             }
             Op::MoveWorkspaceDown => layout.move_workspace_down(),
             Op::MoveWorkspaceUp => layout.move_workspace_up(),
+            Op::MoveWorkspaceLeft => layout.move_workspace_in_direction(axis::Direction::Left),
+            Op::MoveWorkspaceRight => layout.move_workspace_in_direction(axis::Direction::Right),
             Op::MoveWorkspaceToIndex {
                 ws_name: Some(ws_name),
                 target_idx,
@@ -1304,8 +1504,10 @@ impl Op {
 
                 layout.move_workspace_to_output_by_id(old_idx, Some(old_output), &output);
             }
-            Op::SwitchPresetColumnWidth => layout.toggle_width(true),
-            Op::SwitchPresetColumnWidthBack => layout.toggle_width(false),
+            Op::SwitchPresetGroupWidth => layout.toggle_width(true),
+            Op::SwitchPresetGroupWidthBack => layout.toggle_width(false),
+            Op::SwitchPresetGroupHeight => layout.toggle_height(true),
+            Op::SwitchPresetGroupHeightBack => layout.toggle_height(false),
             Op::SwitchPresetWindowWidth { id } => {
                 let id = id.filter(|id| layout.has_window(id));
                 layout.toggle_window_width(id.as_ref(), true);
@@ -1322,7 +1524,7 @@ impl Op {
                 let id = id.filter(|id| layout.has_window(id));
                 layout.toggle_window_height(id.as_ref(), false);
             }
-            Op::MaximizeColumn => layout.toggle_full_width(),
+            Op::MaximizeGroup => layout.toggle_full_width(),
             Op::MaximizeWindowToEdges { id } => {
                 let id = id.or_else(|| layout.focus().map(|win| *win.id()));
                 let Some(id) = id else {
@@ -1333,7 +1535,7 @@ impl Op {
                 }
                 layout.toggle_maximized(&id);
             }
-            Op::SetColumnWidth(change) => layout.set_column_width(change),
+            Op::SetGroupWidth(change) => layout.set_column_width(change),
             Op::SetWindowWidth { id, change } => {
                 let id = id.filter(|id| layout.has_window(id));
                 layout.set_window_width(id.as_ref(), change);
@@ -1346,7 +1548,9 @@ impl Op {
                 let id = id.filter(|id| layout.has_window(id));
                 layout.reset_window_height(id.as_ref());
             }
-            Op::ExpandColumnToAvailableWidth => layout.expand_column_to_available_width(),
+            Op::ExpandGroupToAvailableWidth => layout.expand_column_to_available_width(),
+            Op::SetGroupHeight(change) => layout.set_group_height(change),
+            Op::ExpandGroupToAvailableHeight => layout.expand_group_to_available_height(),
             Op::ToggleWindowFloating { id } => {
                 let id = id.filter(|id| layout.has_window(id));
                 layout.toggle_window_floating(id.as_ref());
@@ -1654,6 +1858,1805 @@ fn check_ops_with_options(
     layout
 }
 
+/// The floating render position of the window with the given id, in workspace-view space.
+fn floating_pos_of_window(layout: &Layout<TestWindow>, id: usize) -> (f64, f64) {
+    let mut pos = None;
+    layout.with_windows(|win, _, _, layout| {
+        if *win.id() == id {
+            pos = layout.tile_pos_in_workspace_view;
+        }
+    });
+    pos.unwrap()
+}
+
+#[test]
+fn vertical_orientation_places_columns_vertically() {
+    let mut options = Options::default();
+    options.layout.orientation = Orientation::Vertical;
+
+    let layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(1),
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(2),
+            },
+        ],
+    );
+
+    let ws = layout.active_workspace().unwrap();
+    let positions: Vec<_> = ws
+        .tiles_with_render_positions()
+        .map(|(_, pos, _)| pos)
+        .collect();
+
+    assert_eq!(positions.len(), 2);
+
+    let dx = (positions[0].x - positions[1].x).abs();
+    let dy = (positions[0].y - positions[1].y).abs();
+    assert!(
+        dy > dx,
+        "expected vertical separation, got dx={dx}, dy={dy}"
+    );
+}
+
+#[test]
+fn vertical_orientation_insert_position_follows_y() {
+    let mut options = Options::default();
+    options.layout.orientation = Orientation::Vertical;
+
+    let layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(1),
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(2),
+            },
+        ],
+    );
+
+    let ws = layout.active_workspace().unwrap();
+    let mut centers: Vec<_> = ws
+        .tiles_with_render_positions()
+        .map(|(tile, pos, _)| {
+            let size = tile.window().size().to_f64();
+            Point::from((pos.x + size.w / 2., pos.y + size.h / 2.))
+        })
+        .collect();
+    centers.sort_by(|a, b| a.y.total_cmp(&b.y));
+
+    assert_eq!(centers.len(), 2);
+
+    let insert_col_idx = |center| match ws.scrolling_insert_position(center) {
+        super::monitor::InsertPosition::NewColumn(idx)
+        | super::monitor::InsertPosition::InColumn(idx, _) => idx,
+        super::monitor::InsertPosition::Floating => unreachable!(),
+    };
+
+    let upper_idx = insert_col_idx(centers[0]);
+    let lower_idx = insert_col_idx(centers[1]);
+
+    assert!(
+        lower_idx > upper_idx,
+        "expected insert position to progress with y, got upper={upper_idx}, lower={lower_idx}"
+    );
+}
+
+#[test]
+fn vertical_orientation_dnd_edge_scroll_uses_vertical_edges() {
+    let mut options = Options::default();
+    options.layout.orientation = Orientation::Vertical;
+
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(1),
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(2),
+            },
+        ],
+    );
+
+    let ws = layout.active_workspace_mut().unwrap();
+    let area = ws.working_area();
+
+    ws.dnd_scroll_gesture_begin();
+
+    let center =
+        Point::<f64, Logical>::from((area.loc.x + area.size.w / 2., area.loc.y + area.size.h / 2.));
+    let left = Point::from((area.loc.x + 1., center.y));
+    let top = Point::from((center.x, area.loc.y + 1.));
+
+    assert!(!ws.dnd_scroll_gesture_scroll(left, 1.));
+    assert!(ws.dnd_scroll_gesture_scroll(top, 1.));
+}
+
+#[test]
+fn spatial_group_focus_on_vertical() {
+    let mut options = Options::default();
+    options.layout.orientation = Orientation::Vertical;
+
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(1),
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(2),
+            },
+        ],
+    );
+
+    let ws = layout.active_workspace_mut().unwrap();
+    assert_eq!(ws.scrolling().active_column_idx(), 1);
+
+    assert!(ws.focus_group_in_direction(axis::Direction::Up));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        0,
+        "Up must activate group 0"
+    );
+
+    assert!(!ws.focus_group_in_direction(axis::Direction::Up));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        0,
+        "Up at the edge must not move focus"
+    );
+
+    assert!(!ws.focus_group_in_direction(axis::Direction::Left));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        0,
+        "Left is off-axis and must not move focus"
+    );
+
+    assert!(!ws.focus_group_in_direction(axis::Direction::Right));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        0,
+        "Right is off-axis and must not move focus"
+    );
+
+    assert!(ws.focus_group_in_direction(axis::Direction::Down));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        1,
+        "Down must activate group 1"
+    );
+}
+
+#[test]
+fn spatial_group_focus_on_horizontal() {
+    let mut options = Options::default();
+    options.layout.orientation = Orientation::Horizontal;
+
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(1),
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(2),
+            },
+        ],
+    );
+
+    let ws = layout.active_workspace_mut().unwrap();
+    assert_eq!(ws.scrolling().active_column_idx(), 1);
+
+    assert!(ws.focus_group_in_direction(axis::Direction::Left));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        0,
+        "Left must activate group 0"
+    );
+
+    assert!(!ws.focus_group_in_direction(axis::Direction::Left));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        0,
+        "Left at the edge must not move focus"
+    );
+
+    assert!(!ws.focus_group_in_direction(axis::Direction::Up));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        0,
+        "Up is off-axis and must not move focus"
+    );
+
+    assert!(!ws.focus_group_in_direction(axis::Direction::Down));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        0,
+        "Down is off-axis and must not move focus"
+    );
+
+    assert!(ws.focus_group_in_direction(axis::Direction::Right));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        1,
+        "Right must activate group 1"
+    );
+}
+
+#[test]
+fn spatial_window_focus() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(1),
+        },
+        Op::AddWindow {
+            params: TestWindowParams::new(2),
+        },
+    ];
+
+    // Return focus to column 0 and merge column 1 into it, using the orientation-agnostic
+    // Workspace methods directly rather than the physical Layout entry points (which is what
+    // this test exercises below) -- this setup must not depend on which physical directions
+    // are live on the fixture's orientation.
+    let merge_into_single_column = |ws: &mut Workspace<TestWindow>| {
+        ws.focus_column_first();
+        ws.consume_into_column();
+    };
+
+    // Vertical: window focus (within a group) moves along the cross axis, which for a vertical
+    // workspace is physically Left/Right; Up/Down are off-axis and always return false.
+    let mut vertical_options = Options::default();
+    vertical_options.layout.orientation = Orientation::Vertical;
+
+    let mut layout = check_ops_with_options(vertical_options, ops.clone());
+    merge_into_single_column(layout.active_workspace_mut().unwrap());
+    layout.verify_invariants();
+
+    let ws = layout.active_workspace_mut().unwrap();
+    assert_eq!(ws.scrolling().active_column_idx(), 0);
+
+    assert!(!ws.focus_window_in_direction(axis::Direction::Up));
+    assert!(!ws.focus_window_in_direction(axis::Direction::Down));
+    assert!(ws.focus_window_in_direction(axis::Direction::Right));
+    assert!(!ws.focus_window_in_direction(axis::Direction::Up));
+    assert!(!ws.focus_window_in_direction(axis::Direction::Down));
+    assert!(ws.focus_window_in_direction(axis::Direction::Left));
+
+    // Horizontal: mirror image, Up/Down live and Left/Right off-axis.
+    let mut horizontal_options = Options::default();
+    horizontal_options.layout.orientation = Orientation::Horizontal;
+
+    let mut layout = check_ops_with_options(horizontal_options, ops);
+    merge_into_single_column(layout.active_workspace_mut().unwrap());
+    layout.verify_invariants();
+
+    let ws = layout.active_workspace_mut().unwrap();
+    assert_eq!(ws.scrolling().active_column_idx(), 0);
+
+    assert!(!ws.focus_window_in_direction(axis::Direction::Left));
+    assert!(!ws.focus_window_in_direction(axis::Direction::Right));
+    assert!(ws.focus_window_in_direction(axis::Direction::Down));
+    assert!(!ws.focus_window_in_direction(axis::Direction::Left));
+    assert!(!ws.focus_window_in_direction(axis::Direction::Right));
+    assert!(ws.focus_window_in_direction(axis::Direction::Up));
+}
+
+#[test]
+fn fused_focus_window_or_group() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(1),
+        },
+        Op::AddWindow {
+            params: TestWindowParams::new(2),
+        },
+        Op::AddWindow {
+            params: TestWindowParams::new(3),
+        },
+    ];
+
+    // Merge windows 2 and 3 into one group so both halves of the fused action have
+    // somewhere to go, using orientation-agnostic Workspace methods for the setup.
+    // focus_column is 1-based; consume_into_column pulls the next column's window
+    // into the active column (it would no-op on the last column, hence the focus
+    // first). Result: group 0 = [w1], group 1 = [w2, w3], active window w2 at the
+    // group's first position.
+    let merge_last_two = |ws: &mut Workspace<TestWindow>| {
+        ws.focus_column(2);
+        ws.consume_into_column();
+    };
+
+    // Horizontal: groups run Left/Right (main axis), windows within a group run
+    // Up/Down (cross axis).
+    let mut horizontal_options = Options::default();
+    horizontal_options.layout.orientation = Orientation::Horizontal;
+
+    let mut layout = check_ops_with_options(horizontal_options, ops.clone());
+    merge_last_two(layout.active_workspace_mut().unwrap());
+    layout.verify_invariants();
+
+    let ws = layout.active_workspace_mut().unwrap();
+    assert_eq!(ws.scrolling().active_column_idx(), 1);
+
+    // Both windows of group 1 are reachable via the window half. The active window
+    // starts at the group's first position, so go Down (to w3) before Up (back).
+    assert!(ws.focus_window_or_group_in_direction(axis::Direction::Down));
+    assert!(ws.focus_window_or_group_in_direction(axis::Direction::Up));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        1,
+        "window-half moves must stay within group 1"
+    );
+
+    // Left reaches group 0 via the group half (window half is off-axis).
+    assert!(ws.focus_window_or_group_in_direction(axis::Direction::Left));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        0,
+        "Left must focus group 0"
+    );
+
+    // Group 0 has a single window: the window half is at its edge and the group
+    // half is off-axis for Up/Down, so the fused action must no-op.
+    assert!(!ws.focus_window_or_group_in_direction(axis::Direction::Up));
+    assert!(!ws.focus_window_or_group_in_direction(axis::Direction::Down));
+    assert_eq!(ws.scrolling().active_column_idx(), 0);
+
+    assert!(ws.focus_window_or_group_in_direction(axis::Direction::Right));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        1,
+        "Right must focus group 1"
+    );
+
+    // Vertical: mirror image. Groups run Up/Down, windows within a group run
+    // Left/Right.
+    let mut vertical_options = Options::default();
+    vertical_options.layout.orientation = Orientation::Vertical;
+
+    let mut layout = check_ops_with_options(vertical_options, ops);
+    merge_last_two(layout.active_workspace_mut().unwrap());
+    layout.verify_invariants();
+
+    let ws = layout.active_workspace_mut().unwrap();
+    assert_eq!(ws.scrolling().active_column_idx(), 1);
+
+    // Active window starts at the group's first position: Right (to w3) before Left.
+    assert!(ws.focus_window_or_group_in_direction(axis::Direction::Right));
+    assert!(ws.focus_window_or_group_in_direction(axis::Direction::Left));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        1,
+        "window-half moves must stay within group 1"
+    );
+
+    assert!(ws.focus_window_or_group_in_direction(axis::Direction::Up));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        0,
+        "Up must focus group 0"
+    );
+
+    assert!(!ws.focus_window_or_group_in_direction(axis::Direction::Left));
+    assert!(!ws.focus_window_or_group_in_direction(axis::Direction::Right));
+    assert_eq!(ws.scrolling().active_column_idx(), 0);
+
+    assert!(ws.focus_window_or_group_in_direction(axis::Direction::Down));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        1,
+        "Down must focus group 1"
+    );
+}
+
+#[test]
+fn fused_move_window_or_group() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(1),
+        },
+        Op::AddWindow {
+            params: TestWindowParams::new(2),
+        },
+        Op::AddWindow {
+            params: TestWindowParams::new(3),
+        },
+    ];
+
+    let merge_last_two = |ws: &mut Workspace<TestWindow>| {
+        ws.focus_column(2);
+        ws.consume_into_column();
+    };
+
+    // Horizontal: the group half moves the group along Left/Right; the window half
+    // reorders within the group along Up/Down.
+    let mut horizontal_options = Options::default();
+    horizontal_options.layout.orientation = Orientation::Horizontal;
+
+    let mut layout = check_ops_with_options(horizontal_options, ops.clone());
+    merge_last_two(layout.active_workspace_mut().unwrap());
+    layout.verify_invariants();
+
+    let ws = layout.active_workspace_mut().unwrap();
+    assert_eq!(ws.scrolling().active_column_idx(), 1);
+
+    // Window half live: reorder within the 2-window group. The active window starts
+    // at the group's first position, so move Down before moving back Up.
+    assert!(ws.move_window_or_group_in_direction(axis::Direction::Down));
+    assert!(ws.move_window_or_group_in_direction(axis::Direction::Up));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        1,
+        "window-half moves must not move the group"
+    );
+
+    // Group half live: move the group to index 0.
+    assert!(ws.move_window_or_group_in_direction(axis::Direction::Left));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        0,
+        "Left must move the group"
+    );
+
+    // At the strip edge with the window half off-axis: no-op.
+    assert!(!ws.move_window_or_group_in_direction(axis::Direction::Left));
+    assert_eq!(ws.scrolling().active_column_idx(), 0);
+
+    layout.verify_invariants();
+
+    // Vertical: mirror image.
+    let mut vertical_options = Options::default();
+    vertical_options.layout.orientation = Orientation::Vertical;
+
+    let mut layout = check_ops_with_options(vertical_options, ops);
+    merge_last_two(layout.active_workspace_mut().unwrap());
+    layout.verify_invariants();
+
+    let ws = layout.active_workspace_mut().unwrap();
+    assert_eq!(ws.scrolling().active_column_idx(), 1);
+
+    // Active window starts at the group's first position: move Right before Left.
+    assert!(ws.move_window_or_group_in_direction(axis::Direction::Right));
+    assert!(ws.move_window_or_group_in_direction(axis::Direction::Left));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        1,
+        "window-half moves must not move the group"
+    );
+
+    assert!(ws.move_window_or_group_in_direction(axis::Direction::Up));
+    assert_eq!(
+        ws.scrolling().active_column_idx(),
+        0,
+        "Up must move the group"
+    );
+
+    assert!(!ws.move_window_or_group_in_direction(axis::Direction::Up));
+    assert_eq!(ws.scrolling().active_column_idx(), 0);
+
+    layout.verify_invariants();
+}
+
+#[test]
+fn fused_move_window_or_group_floating_follows_orientation() {
+    // Pins the fused move action on the floating layer: unlike the scrolling layer, a
+    // floating window has no edges to run out of, so every physical direction resolves via
+    // one of the two halves. What must still hold is that each direction is routed through
+    // the half matching the *current* orientation, not a hardcoded axis.
+    let mut options = Options::default();
+    options.layout.orientation = Orientation::Vertical;
+
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(1),
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+            Op::ToggleWindowFloating { id: None },
+        ],
+    );
+
+    let before = floating_pos_of_window(&layout, 1);
+
+    // Down is the main axis on vertical (group half), matching move_group_in_direction(Down)
+    // in the sibling floating test above.
+    let ws = layout.active_workspace_mut().unwrap();
+    assert!(ws.move_window_or_group_in_direction(axis::Direction::Down));
+
+    let after_down = floating_pos_of_window(&layout, 1);
+    assert_eq!(
+        after_down.0, before.0,
+        "fused Down must not move the floating window horizontally on vertical orientation"
+    );
+    assert!(
+        after_down.1 > before.1,
+        "fused Down must move the floating window down, like move_group_in_direction(Down)"
+    );
+
+    // Right is the cross axis on vertical (window half): it is dead for the plain group
+    // action (see vertical_orientation_floating_move_column_right_is_noop_...), but the
+    // fused action must still resolve it via the window half and move horizontally. If the
+    // fused method ignored orientation (e.g. treated Right as always the group/main axis),
+    // this would instead move the window vertically again.
+    let ws = layout.active_workspace_mut().unwrap();
+    assert!(ws.move_window_or_group_in_direction(axis::Direction::Right));
+
+    let after_right = floating_pos_of_window(&layout, 1);
+    assert_eq!(
+        after_right.1, after_down.1,
+        "fused Right must not move the floating window vertically on vertical orientation"
+    );
+    assert!(
+        after_right.0 > after_down.0,
+        "fused Right must move the floating window right via the window half"
+    );
+}
+
+#[test]
+fn spatial_window_edge_focus() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(1),
+        },
+        Op::AddWindow {
+            params: TestWindowParams::new(2),
+        },
+        Op::AddWindow {
+            params: TestWindowParams::new(3),
+        },
+    ];
+
+    // Merge the three columns into a single 3-window group, preserving window order 1, 2, 3
+    // from start to end -- using the orientation-agnostic Workspace methods directly (as
+    // spatial_window_focus above does) so the setup does not depend on which physical
+    // directions happen to be live on the fixture's orientation.
+    let merge_into_single_column = |ws: &mut Workspace<TestWindow>| {
+        ws.focus_column_first();
+        ws.consume_into_column();
+        ws.consume_into_column();
+    };
+
+    let active_id = |layout: &Layout<TestWindow>| {
+        *layout
+            .active_workspace()
+            .unwrap()
+            .active_window()
+            .unwrap()
+            .id()
+    };
+
+    // Vertical: the cross axis is physically Left/Right.
+    let mut vertical_options = Options::default();
+    vertical_options.layout.orientation = Orientation::Vertical;
+
+    let mut layout = check_ops_with_options(vertical_options, ops.clone());
+    merge_into_single_column(layout.active_workspace_mut().unwrap());
+    layout.verify_invariants();
+
+    // (a) focus_window_first/last jump to the ends -- live on every orientation.
+    layout.focus_window_last();
+    assert_eq!(
+        active_id(&layout),
+        3,
+        "focus_window_last must land on window 3"
+    );
+    layout.focus_window_first();
+    assert_eq!(
+        active_id(&layout),
+        1,
+        "focus_window_first must land on window 1"
+    );
+
+    // (b) focus_window_edge_in_direction(Left/Right) is live on vertical.
+    layout.focus_window_edge_in_direction(axis::Direction::Right);
+    assert_eq!(
+        active_id(&layout),
+        3,
+        "Right (cross-axis end) must land on window 3 on vertical"
+    );
+    layout.focus_window_edge_in_direction(axis::Direction::Left);
+    assert_eq!(
+        active_id(&layout),
+        1,
+        "Left (cross-axis start) must land on window 1 on vertical"
+    );
+
+    // (d) focus_window_top/bottom are off the vertical cross axis (Left/Right) and must no-op.
+    layout.focus_window_last();
+    assert_eq!(active_id(&layout), 3);
+    layout.focus_window_top();
+    assert_eq!(
+        active_id(&layout),
+        3,
+        "focus_window_top must not move on vertical"
+    );
+    layout.focus_window_bottom();
+    assert_eq!(
+        active_id(&layout),
+        3,
+        "focus_window_bottom must not move on vertical"
+    );
+
+    // (c) the wrap twins wrap on vertical.
+    layout.focus_window_first();
+    assert_eq!(active_id(&layout), 1);
+    layout.focus_window_right_or_leftmost();
+    assert_eq!(
+        active_id(&layout),
+        2,
+        "right_or_leftmost must step forward when not at the end"
+    );
+    layout.focus_window_right_or_leftmost();
+    assert_eq!(active_id(&layout), 3);
+    layout.focus_window_right_or_leftmost();
+    assert_eq!(
+        active_id(&layout),
+        1,
+        "right_or_leftmost must wrap to the leftmost window at the end"
+    );
+
+    layout.focus_window_left_or_rightmost();
+    assert_eq!(
+        active_id(&layout),
+        3,
+        "left_or_rightmost must wrap to the rightmost window at the start"
+    );
+    layout.focus_window_left_or_rightmost();
+    assert_eq!(active_id(&layout), 2);
+    layout.focus_window_left_or_rightmost();
+    assert_eq!(active_id(&layout), 1);
+
+    layout.verify_invariants();
+
+    // Horizontal: mirror image; the cross axis is physically Up/Down, so Left/Right (and hence
+    // Leftmost/Rightmost and their wrap twins) are entirely off-axis.
+    let mut horizontal_options = Options::default();
+    horizontal_options.layout.orientation = Orientation::Horizontal;
+
+    let mut layout = check_ops_with_options(horizontal_options, ops);
+    merge_into_single_column(layout.active_workspace_mut().unwrap());
+    layout.verify_invariants();
+
+    // (a) focus_window_first/last are still live -- orientation-neutral.
+    layout.focus_window_last();
+    assert_eq!(active_id(&layout), 3);
+    layout.focus_window_first();
+    assert_eq!(active_id(&layout), 1);
+
+    // (b) focus_window_edge_in_direction(Left/Right) is dead on horizontal.
+    layout.focus_window_last();
+    layout.focus_window_edge_in_direction(axis::Direction::Left);
+    assert_eq!(active_id(&layout), 3, "Left must not move on horizontal");
+    layout.focus_window_edge_in_direction(axis::Direction::Right);
+    assert_eq!(active_id(&layout), 3, "Right must not move on horizontal");
+
+    // (d) focus_window_top/bottom still work on horizontal -- unchanged, shared path.
+    layout.focus_window_top();
+    assert_eq!(
+        active_id(&layout),
+        1,
+        "focus_window_top must still move on horizontal"
+    );
+    layout.focus_window_bottom();
+    assert_eq!(
+        active_id(&layout),
+        3,
+        "focus_window_bottom must still move on horizontal"
+    );
+
+    // (c) the wrap twins are dead on horizontal: both halves are off-axis, so the whole action
+    // no-ops, matching every other vertical composite.
+    layout.focus_window_first();
+    assert_eq!(active_id(&layout), 1);
+    layout.focus_window_right_or_leftmost();
+    assert_eq!(
+        active_id(&layout),
+        1,
+        "right_or_leftmost must no-op on horizontal"
+    );
+    layout.focus_window_left_or_rightmost();
+    assert_eq!(
+        active_id(&layout),
+        1,
+        "left_or_rightmost must no-op on horizontal"
+    );
+
+    layout.verify_invariants();
+}
+
+#[test]
+fn spatial_workspace_switch() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(1),
+        },
+        Op::FocusWorkspaceDown,
+        Op::AddWindow {
+            params: TestWindowParams::new(2),
+        },
+        Op::FocusWorkspaceUp,
+    ];
+
+    // Horizontal monitor: workspaces stack along the cross axis, which is physically Up/Down;
+    // Left/Right are off-axis and leave the active workspace unchanged.
+    let mut horizontal_options = Options::default();
+    horizontal_options.layout.orientation = Orientation::Horizontal;
+
+    let mut layout = check_ops_with_options(horizontal_options, ops.clone());
+    let mon = layout.monitors_mut().next().unwrap();
+    assert_eq!(mon.active_workspace_idx(), 0);
+
+    mon.switch_workspace_in_direction(axis::Direction::Down);
+    assert_eq!(mon.active_workspace_idx(), 1, "Down must activate ws 1");
+
+    mon.switch_workspace_in_direction(axis::Direction::Up);
+    assert_eq!(mon.active_workspace_idx(), 0, "Up must activate ws 0");
+
+    mon.switch_workspace_in_direction(axis::Direction::Left);
+    assert_eq!(
+        mon.active_workspace_idx(),
+        0,
+        "Left is off-axis and must not switch workspace"
+    );
+
+    mon.switch_workspace_in_direction(axis::Direction::Right);
+    assert_eq!(
+        mon.active_workspace_idx(),
+        0,
+        "Right is off-axis and must not switch workspace"
+    );
+
+    // Vertical monitor: workspaces stack along the cross axis, which is physically Left/Right;
+    // Up/Down are off-axis and leave the active workspace unchanged.
+    let mut vertical_options = Options::default();
+    vertical_options.layout.orientation = Orientation::Vertical;
+
+    let mut layout = check_ops_with_options(vertical_options, ops);
+    let mon = layout.monitors_mut().next().unwrap();
+    assert_eq!(mon.active_workspace_idx(), 0);
+
+    mon.switch_workspace_in_direction(axis::Direction::Right);
+    assert_eq!(mon.active_workspace_idx(), 1, "Right must activate ws 1");
+
+    mon.switch_workspace_in_direction(axis::Direction::Left);
+    assert_eq!(mon.active_workspace_idx(), 0, "Left must activate ws 0");
+
+    mon.switch_workspace_in_direction(axis::Direction::Up);
+    assert_eq!(
+        mon.active_workspace_idx(),
+        0,
+        "Up is off-axis and must not switch workspace"
+    );
+
+    mon.switch_workspace_in_direction(axis::Direction::Down);
+    assert_eq!(
+        mon.active_workspace_idx(),
+        0,
+        "Down is off-axis and must not switch workspace"
+    );
+}
+
+#[test]
+fn vertical_spatial_flip_for_existing_actions() {
+    let mut options = Options::default();
+    options.layout.orientation = Orientation::Vertical;
+
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(1),
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(2),
+            },
+        ],
+    );
+
+    // Two single-window groups (columns); window 2's column (idx 1) is active.
+    assert_eq!(
+        layout
+            .active_workspace()
+            .unwrap()
+            .scrolling()
+            .active_column_idx(),
+        1
+    );
+
+    // focus_left()/focus_right() are group (main-axis) actions. Left/Right are off the
+    // vertical main axis, so they are dead: the active group must not change.
+    layout.focus_left();
+    assert_eq!(
+        layout
+            .active_workspace()
+            .unwrap()
+            .scrolling()
+            .active_column_idx(),
+        1,
+        "focus_left must not move on vertical"
+    );
+
+    layout.focus_right();
+    assert_eq!(
+        layout
+            .active_workspace()
+            .unwrap()
+            .scrolling()
+            .active_column_idx(),
+        1,
+        "focus_right must not move on vertical"
+    );
+
+    // move_left()/move_right() do not reorder the groups either. Checked one call at a time
+    // (not back-to-back) -- a reverted `move_left` alone would swap the order to [c1, c0], and
+    // a subsequent (correctly gated, still dead) `move_right` would never undo that swap, so
+    // checking only after both calls would hide a revert of either one behind the other.
+    let order_before: Vec<_> = layout
+        .active_workspace()
+        .unwrap()
+        .scrolling()
+        .columns()
+        .map(|col| col.id())
+        .collect();
+
+    layout.move_left();
+    let order_after_move_left: Vec<_> = layout
+        .active_workspace()
+        .unwrap()
+        .scrolling()
+        .columns()
+        .map(|col| col.id())
+        .collect();
+    assert_eq!(
+        order_before, order_after_move_left,
+        "move_left alone must not reorder groups on vertical"
+    );
+
+    layout.move_right();
+    let order_after_move_right: Vec<_> = layout
+        .active_workspace()
+        .unwrap()
+        .scrolling()
+        .columns()
+        .map(|col| col.id())
+        .collect();
+    assert_eq!(
+        order_before, order_after_move_right,
+        "move_right must not reorder groups on vertical either"
+    );
+
+    // Distinguish "dead direction" from "edge": a group does exist above group 1 in strip
+    // terms, but focus_left (off-axis) must not reach it -- only the live main-axis
+    // direction (Up) does.
+    assert!(layout
+        .active_workspace_mut()
+        .unwrap()
+        .focus_group_in_direction(axis::Direction::Up));
+    assert_eq!(
+        layout
+            .active_workspace()
+            .unwrap()
+            .scrolling()
+            .active_column_idx(),
+        0,
+        "Direction::Up, the live main-axis direction, does move on vertical"
+    );
+
+    // focus_up()/focus_down() are window (cross-axis) actions. Up/Down are off the vertical
+    // cross axis (Left/Right), so they are dead too -- not because there's nowhere to go, but
+    // because the direction never resolves at all. Merge the two columns into a single
+    // 2-window column first, so there genuinely is somewhere for a (wrongly) ungated
+    // focus_up/down to go -- with only one window per column the assertions below would pass
+    // even if focus_down/focus_up ignored the axis gate entirely.
+    layout.active_workspace_mut().unwrap().focus_column_first();
+    layout.active_workspace_mut().unwrap().consume_into_column();
+    assert_eq!(
+        layout
+            .active_workspace()
+            .unwrap()
+            .scrolling()
+            .active_column_idx(),
+        0
+    );
+    let active_before_down = *layout
+        .active_workspace()
+        .unwrap()
+        .active_window()
+        .unwrap()
+        .id();
+    assert_eq!(
+        active_before_down, 1,
+        "the merged column's first tile (window 1) must be active"
+    );
+
+    // Test focus_down() while active is at the *start* of the 2-tile column (window 1), where
+    // an ungated "next tile" move genuinely has somewhere to go (window 2) -- testing it from
+    // the end of the column, where even an ungated move would have nowhere to go, would be
+    // vacuous.
+    layout.focus_down();
+    assert_eq!(
+        *layout
+            .active_workspace()
+            .unwrap()
+            .active_window()
+            .unwrap()
+            .id(),
+        active_before_down,
+        "focus_down must not move on vertical"
+    );
+
+    // Live-direction probe: prove the fixture (still the same 2-window column) can actually
+    // move window focus, using the spatial method directly with the correct (cross-axis)
+    // physical direction. This also repositions active to the *end* of the column (window 2),
+    // so the focus_up() check below isn't vacuous the same way focus_down()'s would have been.
+    assert!(
+        layout
+            .active_workspace_mut()
+            .unwrap()
+            .focus_window_in_direction(axis::Direction::Right),
+        "fixture must support live window-focus movement (Right, on-axis for vertical)"
+    );
+    let active_before_up = *layout
+        .active_workspace()
+        .unwrap()
+        .active_window()
+        .unwrap()
+        .id();
+    assert_eq!(
+        active_before_up, 2,
+        "the probe must have moved focus to window 2"
+    );
+
+    // Test focus_up() while active is at the *end* of the column (window 2), where an ungated
+    // "previous tile" move genuinely has somewhere to go (window 1).
+    layout.focus_up();
+    assert_eq!(
+        *layout
+            .active_workspace()
+            .unwrap()
+            .active_window()
+            .unwrap()
+            .id(),
+        active_before_up,
+        "focus_up must not move on vertical"
+    );
+
+    // switch_workspace_down() is a monitor cross-axis action; on a vertical monitor the
+    // cross axis is physically Left/Right, so Down is off-axis and leaves the active
+    // workspace index unchanged. switch_workspace_in_direction(Right) is the live direction.
+    //
+    // Populate workspace 1 via the live direction first -- switch_workspace_down() is itself a
+    // no-op on vertical, so the old FocusWorkspaceDown/AddWindow/FocusWorkspaceUp dance can no
+    // longer be used for setup: it would leave window 3 on workspace 0 and the final assertion
+    // would land on a freshly auto-created, still-empty workspace 1 instead of a populated one.
+    layout
+        .monitors_mut()
+        .next()
+        .unwrap()
+        .switch_workspace_in_direction(axis::Direction::Right);
+    check_ops_on_layout(
+        &mut layout,
+        [Op::AddWindow {
+            params: TestWindowParams::new(3),
+        }],
+    );
+    layout
+        .monitors_mut()
+        .next()
+        .unwrap()
+        .switch_workspace_in_direction(axis::Direction::Left);
+
+    assert_eq!(
+        layout.active_monitor_ref().unwrap().active_workspace_idx(),
+        0
+    );
+    assert!(
+        layout.active_monitor_ref().unwrap().workspaces[1].has_windows(),
+        "workspace 1 must already be populated before the switch assertions below"
+    );
+
+    layout.switch_workspace_down();
+    assert_eq!(
+        layout.active_monitor_ref().unwrap().active_workspace_idx(),
+        0,
+        "switch_workspace_down must not switch on vertical"
+    );
+
+    let mon = layout.monitors_mut().next().unwrap();
+    mon.switch_workspace_in_direction(axis::Direction::Right);
+    assert_eq!(
+        mon.active_workspace_idx(),
+        1,
+        "switch_workspace_in_direction(Right) is the live direction on vertical"
+    );
+    assert!(
+        mon.workspaces[1].has_windows(),
+        "the switch must land on the already-populated workspace 1"
+    );
+}
+
+#[test]
+fn horizontal_behavior_unchanged_for_existing_actions() {
+    let mut options = Options::default();
+    options.layout.orientation = Orientation::Horizontal;
+
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(1),
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(2),
+            },
+        ],
+    );
+
+    assert_eq!(
+        layout
+            .active_workspace()
+            .unwrap()
+            .scrolling()
+            .active_column_idx(),
+        1
+    );
+
+    layout.focus_left();
+    assert_eq!(
+        layout
+            .active_workspace()
+            .unwrap()
+            .scrolling()
+            .active_column_idx(),
+        0,
+        "focus_left must still move on horizontal"
+    );
+
+    layout.focus_right();
+    assert_eq!(
+        layout
+            .active_workspace()
+            .unwrap()
+            .scrolling()
+            .active_column_idx(),
+        1,
+        "focus_right must still move on horizontal"
+    );
+
+    check_ops_on_layout(
+        &mut layout,
+        [
+            Op::FocusWorkspaceDown,
+            Op::AddWindow {
+                params: TestWindowParams::new(3),
+            },
+            Op::FocusWorkspaceUp,
+        ],
+    );
+    assert_eq!(
+        layout.active_monitor_ref().unwrap().active_workspace_idx(),
+        0
+    );
+
+    layout.switch_workspace_down();
+    assert_eq!(
+        layout.active_monitor_ref().unwrap().active_workspace_idx(),
+        1,
+        "switch_workspace_down must still switch on horizontal"
+    );
+}
+
+#[test]
+fn vertical_orientation_overview_places_workspaces_horizontally() {
+    let mut options = Options::default();
+    options.layout.orientation = Orientation::Vertical;
+
+    let layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(1),
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+            Op::FocusWorkspaceDown,
+            Op::AddWindow {
+                params: TestWindowParams::new(2),
+            },
+            Op::ToggleOverview,
+        ],
+    );
+
+    let output = layout
+        .outputs()
+        .find(|output| output.name() == "output1")
+        .cloned()
+        .unwrap();
+    let monitor = layout.monitor_for_output(&output).unwrap();
+
+    let geos: Vec<_> = monitor.workspaces_render_geo().take(2).collect();
+    assert_eq!(geos.len(), 2);
+
+    let dx = (geos[0].loc.x - geos[1].loc.x).abs();
+    let dy = (geos[0].loc.y - geos[1].loc.y).abs();
+    assert!(
+        dx > dy,
+        "expected overview workspaces to be arranged horizontally, got dx={dx}, dy={dy}"
+    );
+}
+
+#[test]
+fn overview_arrangement_does_not_depend_on_active_workspace() {
+    // Workspaces on one monitor can have disagreeing orientations, but they are all arranged
+    // relative to each other along a single direction. That direction belongs to the monitor, so
+    // focusing a differently-oriented workspace must not rearrange the overview.
+    let vertical = niri_config::LayoutPart {
+        orientation: Some(Orientation::Vertical),
+        ..Default::default()
+    };
+
+    let mut layout = Layout::default();
+    check_ops_on_layout(
+        &mut layout,
+        [
+            Op::AddOutput(1),
+            Op::AddNamedWorkspace {
+                ws_name: 1,
+                output_name: Some(1),
+                layout_config: None,
+            },
+            Op::AddNamedWorkspace {
+                ws_name: 2,
+                output_name: Some(1),
+                layout_config: Some(Box::new(vertical)),
+            },
+            Op::ToggleOverview,
+            Op::CompleteAnimations,
+        ],
+    );
+
+    // The offsets between consecutive workspaces: the arrangement with the scroll position of
+    // whichever workspace is active divided out.
+    let arrangement = |layout: &Layout<TestWindow>| {
+        let MonitorSet::Normal { monitors, .. } = &layout.monitor_set else {
+            unreachable!()
+        };
+        let geo: Vec<_> = monitors[0].workspaces_render_geo().collect();
+        geo.windows(2)
+            .map(|pair| pair[1].loc - pair[0].loc)
+            .collect::<Vec<_>>()
+    };
+
+    let idx_with_orientation = |layout: &Layout<TestWindow>, orientation| {
+        let MonitorSet::Normal { monitors, .. } = &layout.monitor_set else {
+            unreachable!()
+        };
+        monitors[0]
+            .workspaces
+            .iter()
+            .position(|ws| ws.orientation() == orientation)
+            .unwrap()
+    };
+
+    let vertical_idx = idx_with_orientation(&layout, Orientation::Vertical);
+    let horizontal_idx = idx_with_orientation(&layout, Orientation::Horizontal);
+
+    check_ops_on_layout(
+        &mut layout,
+        [Op::FocusWorkspace(vertical_idx), Op::CompleteAnimations],
+    );
+    let with_vertical_active = arrangement(&layout);
+
+    check_ops_on_layout(
+        &mut layout,
+        [Op::FocusWorkspace(horizontal_idx), Op::CompleteAnimations],
+    );
+    let with_horizontal_active = arrangement(&layout);
+
+    assert_eq!(with_vertical_active.len(), 3);
+    assert_eq!(
+        with_vertical_active, with_horizontal_active,
+        "the overview arrangement changed when a differently-oriented workspace was focused"
+    );
+}
+
+#[test]
+fn vertical_orientation_set_group_height_changes_tile_height() {
+    let mut options = Options::default();
+    options.layout.orientation = Orientation::Vertical;
+
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(1),
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+        ],
+    );
+
+    let (_, win) = layout.windows().next().unwrap();
+    let before = win.requested_size().unwrap();
+
+    check_ops_on_layout(
+        &mut layout,
+        [Op::SetGroupHeight(SizeChange::AdjustProportion(5.))],
+    );
+
+    let (_, win) = layout.windows().next().unwrap();
+    let after = win.requested_size().unwrap();
+
+    assert_eq!(before.w, after.w);
+    assert!(
+        after.h > before.h,
+        "expected height to grow: {before:?} -> {after:?}"
+    );
+}
+
+#[test]
+fn vertical_orientation_interactive_resize_bottom_changes_tile_height() {
+    let mut options = Options::default();
+    options.layout.orientation = Orientation::Vertical;
+
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(1),
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+        ],
+    );
+
+    let (_, win) = layout.windows().next().unwrap();
+    let before = win.requested_size().unwrap();
+
+    check_ops_on_layout(
+        &mut layout,
+        [
+            Op::InteractiveResizeBegin {
+                window: 1,
+                edges: ResizeEdge::BOTTOM,
+            },
+            Op::InteractiveResizeUpdate {
+                window: 1,
+                dx: 0.,
+                dy: 120.,
+            },
+            Op::InteractiveResizeEnd { window: 1 },
+        ],
+    );
+
+    let (_, win) = layout.windows().next().unwrap();
+    let after = win.requested_size().unwrap();
+
+    assert_eq!(before.w, after.w);
+    assert!(
+        after.h > before.h,
+        "expected interactive resize to grow height: {before:?} -> {after:?}"
+    );
+}
+
+#[test]
+fn vertical_orientation_interactive_move_tracks_pointer_along_y() {
+    let mut options = Options::default();
+    options.layout.orientation = Orientation::Vertical;
+
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(1),
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+        ],
+    );
+
+    let output = layout
+        .outputs()
+        .find(|o| o.name() == "output1")
+        .cloned()
+        .unwrap();
+
+    let (tile_pos, start) = {
+        let ws = layout.active_workspace().unwrap();
+        let (tile, tile_pos, _) = ws
+            .tiles_with_render_positions()
+            .find(|(tile, _, _)| *tile.window().id() == 1)
+            .unwrap();
+
+        let start = tile_pos + tile.window_loc() + Point::from((10., 10.));
+        (tile_pos, start)
+    };
+
+    assert!(layout.interactive_move_begin(1, &output, start));
+
+    let delta = Point::from((0., 220.));
+    let pointer_pos = start + delta;
+    assert!(layout.interactive_move_update(&1, delta, output.clone(), pointer_pos));
+
+    let tile_pos_after = {
+        let ws = layout.active_workspace().unwrap();
+        ws.tiles_with_render_positions()
+            .find(|(tile, _, _)| *tile.window().id() == 1)
+            .unwrap()
+            .1
+    };
+
+    let moved_x = (tile_pos_after.x - tile_pos.x).abs();
+    let moved_y = (tile_pos_after.y - tile_pos.y).abs();
+    assert!(
+        moved_y > moved_x,
+        "expected move gesture to follow y in vertical mode, got dx={moved_x}, dy={moved_y}"
+    );
+}
+
+#[test]
+fn vertical_orientation_floating_move_column_right_is_noop_move_group_down_moves_it_down() {
+    let mut options = Options::default();
+    options.layout.orientation = Orientation::Vertical;
+
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(1),
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+            Op::ToggleWindowFloating { id: None },
+        ],
+    );
+
+    let before = floating_pos_of_window(&layout, 1);
+
+    // The pre-flip logical trigger for "next in strip" (physical Right) is now a dead
+    // direction on vertical: Right is off the main axis, so it must not move the floating
+    // window at all.
+    check_ops_on_layout(&mut layout, [Op::MoveGroupRight]);
+
+    let after_noop = floating_pos_of_window(&layout, 1);
+    assert_eq!(
+        after_noop, before,
+        "move_right (physical Right) must be a no-op on vertical: Right is off the main axis"
+    );
+
+    // The spatially-correct trigger for "move down" is the group (main-axis) action with the
+    // physical Direction::Down.
+    layout
+        .active_workspace_mut()
+        .unwrap()
+        .move_group_in_direction(axis::Direction::Down);
+
+    let after_down = floating_pos_of_window(&layout, 1);
+    let moved_x = after_down.0 - after_noop.0;
+    let moved_y = after_down.1 - after_noop.1;
+    assert!(
+        moved_y > moved_x.abs(),
+        "expected move_group_in_direction(Down) to move the floating window down in vertical \
+         mode, got dx={moved_x}, dy={moved_y}"
+    );
+}
+
+#[test]
+fn vertical_orientation_floating_move_window_down_is_noop_move_window_right_moves_it_right() {
+    let mut options = Options::default();
+    options.layout.orientation = Orientation::Vertical;
+
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(1),
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+            Op::ToggleWindowFloating { id: None },
+        ],
+    );
+
+    let before = floating_pos_of_window(&layout, 1);
+
+    // The pre-flip logical trigger for "next window" (physical Down) is now a dead direction
+    // on vertical: Down is off the cross axis (which is Left/Right for vertical), so it must
+    // not move the floating window at all.
+    check_ops_on_layout(&mut layout, [Op::MoveWindowDown]);
+
+    let after_noop = floating_pos_of_window(&layout, 1);
+    assert_eq!(
+        after_noop, before,
+        "move_down (physical Down) must be a no-op on vertical: Down is off the cross axis"
+    );
+
+    // The spatially-correct trigger for "move right" is the window (cross-axis) action with
+    // the physical Direction::Right.
+    layout
+        .active_workspace_mut()
+        .unwrap()
+        .move_window_in_direction(axis::Direction::Right);
+
+    let after_right = floating_pos_of_window(&layout, 1);
+    let moved_x = after_right.0 - after_noop.0;
+    let moved_y = after_right.1 - after_noop.1;
+    assert!(
+        moved_x > moved_y.abs(),
+        "expected move_window_in_direction(Right) to move the floating window right in \
+         vertical mode, got dx={moved_x}, dy={moved_y}"
+    );
+}
+
+#[test]
+fn vertical_orientation_floating_set_group_height_changes_window_height() {
+    let mut options = Options::default();
+    options.layout.orientation = Orientation::Vertical;
+
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(1),
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+            Op::ToggleWindowFloating { id: None },
+        ],
+    );
+
+    let (_, win) = layout.windows().next().unwrap();
+    let before = win.expected_size().unwrap();
+
+    check_ops_on_layout(
+        &mut layout,
+        [Op::SetGroupHeight(SizeChange::AdjustProportion(5.))],
+    );
+
+    let (_, win) = layout.windows().next().unwrap();
+    let after = win.expected_size().unwrap();
+
+    assert_eq!(before.w, after.w);
+    assert!(
+        after.h > before.h,
+        "expected floating group height to grow height in vertical mode: {before:?} -> {after:?}"
+    );
+}
+
+#[test]
+fn vertical_orientation_gates_width_family_and_ungates_height_family() {
+    let mut options = Options::default();
+    options.layout.orientation = Orientation::Vertical;
+
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(1),
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+        ],
+    );
+
+    let (_, win) = layout.windows().next().unwrap();
+    let before = win.requested_size().unwrap();
+
+    // The width family is gated off on vertical: none of these may change anything.
+    layout.toggle_width(true);
+    layout.set_column_width(SizeChange::AdjustProportion(5.));
+    layout.expand_column_to_available_width();
+
+    let (_, win) = layout.windows().next().unwrap();
+    let after_gated = win.requested_size().unwrap();
+    assert_eq!(
+        before, after_gated,
+        "the width family must be a no-op on a vertical workspace"
+    );
+
+    // Live probe: the height family drives the same span on vertical, proving the assertion
+    // above is not vacuously true (e.g. because nothing here can ever change tile size).
+    layout.toggle_height(true);
+
+    let (_, win) = layout.windows().next().unwrap();
+    let after_height = win.requested_size().unwrap();
+    assert_eq!(before.w, after_height.w);
+    assert_ne!(
+        before.h, after_height.h,
+        "toggle_height must change the group's span on vertical"
+    );
+}
+
+#[test]
+fn horizontal_orientation_gates_height_family_and_ungates_width_family() {
+    let mut layout = check_ops_with_options(
+        Options::default(),
+        [
+            Op::AddOutput(1),
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+        ],
+    );
+
+    let (_, win) = layout.windows().next().unwrap();
+    let before = win.requested_size().unwrap();
+
+    // The height family is gated off on horizontal: none of these may change anything.
+    layout.toggle_height(true);
+    layout.set_group_height(SizeChange::AdjustProportion(5.));
+    layout.expand_group_to_available_height();
+
+    let (_, win) = layout.windows().next().unwrap();
+    let after_gated = win.requested_size().unwrap();
+    assert_eq!(
+        before, after_gated,
+        "the height family must be a no-op on a horizontal workspace"
+    );
+
+    // Live probe: the width family drives the same span on horizontal, proving the assertion
+    // above is not vacuously true.
+    layout.toggle_width(true);
+
+    let (_, win) = layout.windows().next().unwrap();
+    let after_width = win.requested_size().unwrap();
+    assert_eq!(before.h, after_width.h);
+    assert_ne!(
+        before.w, after_width.w,
+        "toggle_width must change the group's span on horizontal"
+    );
+}
+
+#[test]
+fn vertical_orientation_toggle_height_cycles_height_presets_not_width_presets() {
+    let mut options = Options::default();
+    options.layout.orientation = Orientation::Vertical;
+    options.layout.preset_group_widths = vec![PresetSize::Fixed(300)];
+    options.layout.preset_group_heights = vec![PresetSize::Fixed(700)];
+
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(1),
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+        ],
+    );
+
+    layout.toggle_height(true);
+
+    let (_, win) = layout.windows().next().unwrap();
+    let size = win.requested_size().unwrap();
+    assert_eq!(
+        size.h, 700,
+        "toggle_height must cycle preset_group_heights, not preset_group_widths"
+    );
+}
+
+#[test]
+fn resolve_default_main_span_follows_orientation() {
+    // Horizontal: default_group_width is the main-axis default.
+    let mut options = Options::default();
+    options.layout.default_group_width = Some(PresetSize::Fixed(444));
+
+    let layout = check_ops_with_options(options, [Op::AddOutput(1)]);
+    let ws = layout.active_workspace().unwrap();
+
+    assert_eq!(
+        ws.resolve_default_main_span(None, false),
+        Some(PresetSize::Fixed(444))
+    );
+    assert_eq!(
+        ws.resolve_default_main_span(None, true),
+        None,
+        "floating never gets the global group default"
+    );
+
+    // Vertical: default_group_height is the main-axis default instead.
+    let mut options = Options::default();
+    options.layout.orientation = Orientation::Vertical;
+    options.layout.default_group_height = Some(PresetSize::Fixed(555));
+
+    let layout = check_ops_with_options(options, [Op::AddOutput(1)]);
+    let ws = layout.active_workspace().unwrap();
+
+    assert_eq!(
+        ws.resolve_default_main_span(None, false),
+        Some(PresetSize::Fixed(555))
+    );
+    assert_eq!(
+        ws.resolve_default_main_span(None, true),
+        None,
+        "floating never gets the global group default"
+    );
+}
+
+#[test]
+fn resolve_default_cross_span_has_no_global_default() {
+    // Neither orientation has a cross-axis global default, even when default_group_height
+    // (or width) is set: it only ever feeds the main-axis resolver.
+    let mut options = Options::default();
+    options.layout.default_group_height = Some(PresetSize::Fixed(444));
+
+    let layout = check_ops_with_options(options, [Op::AddOutput(1)]);
+    let ws = layout.active_workspace().unwrap();
+    assert_eq!(ws.resolve_default_cross_span(None, false), None);
+
+    let mut options = Options::default();
+    options.layout.orientation = Orientation::Vertical;
+    // default_group_width is Some(0.5) by default.
+
+    let layout = check_ops_with_options(options, [Op::AddOutput(1)]);
+    let ws = layout.active_workspace().unwrap();
+    assert_eq!(ws.resolve_default_cross_span(None, false), None);
+}
+
+#[test]
+fn new_window_size_honors_default_group_span_on_the_matching_physical_axis() {
+    // Horizontal: default_group_width must drive the *physical* width; the cross axis
+    // (physical height) is left unconstrained, since there is no cross-axis global default.
+    let mut options = Options::default();
+    options.layout.default_group_width = Some(PresetSize::Fixed(444));
+
+    let layout = check_ops_with_options(options, [Op::AddOutput(1)]);
+    let ws = layout.active_workspace().unwrap();
+
+    let main = ws.resolve_default_main_span(None, false);
+    let cross = ws.resolve_default_cross_span(None, false);
+    let size = ws.new_window_size(
+        main,
+        cross,
+        false,
+        &ResolvedWindowRules::default(),
+        (Size::from((0, 0)), Size::from((0, 0))),
+    );
+    assert_eq!(
+        size.w, 444,
+        "default_group_width must drive physical width on horizontal"
+    );
+    assert_ne!(
+        size.h, 444,
+        "the cross axis must not pick up the main-axis default"
+    );
+
+    // Vertical: default_group_height must drive the *physical* height instead; the cross axis
+    // (physical width) is left unconstrained.
+    let mut options = Options::default();
+    options.layout.orientation = Orientation::Vertical;
+    options.layout.default_group_height = Some(PresetSize::Fixed(555));
+
+    let layout = check_ops_with_options(options, [Op::AddOutput(1)]);
+    let ws = layout.active_workspace().unwrap();
+
+    let main = ws.resolve_default_main_span(None, false);
+    let cross = ws.resolve_default_cross_span(None, false);
+    let size = ws.new_window_size(
+        main,
+        cross,
+        false,
+        &ResolvedWindowRules::default(),
+        (Size::from((0, 0)), Size::from((0, 0))),
+    );
+    assert_eq!(
+        size.h, 555,
+        "default_group_height must drive physical height on vertical"
+    );
+    assert_ne!(
+        size.w, 555,
+        "the cross axis must not pick up the main-axis default"
+    );
+}
+
+#[test]
+fn vertical_orientation_floating_set_window_height_changes_window_width() {
+    let mut options = Options::default();
+    options.layout.orientation = Orientation::Vertical;
+
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(1),
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+            Op::ToggleWindowFloating { id: None },
+        ],
+    );
+
+    let (_, win) = layout.windows().next().unwrap();
+    let before = win.expected_size().unwrap();
+
+    check_ops_on_layout(
+        &mut layout,
+        [Op::SetWindowHeight {
+            id: None,
+            change: SizeChange::AdjustProportion(5.),
+        }],
+    );
+
+    let (_, win) = layout.windows().next().unwrap();
+    let after = win.expected_size().unwrap();
+
+    assert_eq!(before.h, after.h);
+    assert!(
+        after.w > before.w,
+        "expected floating window height to grow width in vertical mode: {before:?} -> {after:?}"
+    );
+}
+
+#[test]
+fn vertical_orientation_switch_preset_window_height_still_uses_width_presets() {
+    // switch-preset-window-height is axis-mapped (Workspace::toggle_window_height calls
+    // floating.toggle_cross_size), and the cross axis is physical width on a vertical
+    // workspace: AxisMap::map_cross resolves the cross axis to the literal
+    // toggle_window_width function on vertical (mirroring set-window-height's behavior in
+    // the test above), which has always read preset_group_widths -- there is no dedicated
+    // preset-window-widths option, window-width has always shared the group-width list. This
+    // must stay true regardless of orientation: group-height's toggle_main_size resolves to
+    // the literal toggle_window_height instead on vertical, so it never reaches this function,
+    // and making this function orientation-aware would only ever change this physical/window
+    // family's behavior for no benefit -- exactly the regression this pins down. Three preset
+    // lists are given distinct values so any wrong-list read fails visibly.
+    let mut options = Options::default();
+    options.layout.orientation = Orientation::Vertical;
+    options.layout.preset_group_widths = vec![PresetSize::Fixed(301)];
+    options.layout.preset_group_heights = vec![PresetSize::Fixed(601)];
+    options.layout.preset_window_heights = vec![PresetSize::Fixed(701)];
+
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(1),
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+            Op::ToggleWindowFloating { id: None },
+        ],
+    );
+
+    check_ops_on_layout(&mut layout, [Op::SwitchPresetWindowHeight { id: None }]);
+
+    let (_, win) = layout.windows().next().unwrap();
+    let size = win.expected_size().unwrap();
+    assert_eq!(
+        size.w, 301,
+        "switch-preset-window-height on vertical must keep cycling preset_group_widths (via \
+         the literal toggle_window_width it's axis-mapped to), not preset_group_heights or \
+         preset_window_heights"
+    );
+}
+
+#[test]
+fn scrolling_windows_have_ipc_tile_positions() {
+    let layout = check_ops([
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(1),
+        },
+    ]);
+
+    let mut tile_pos = None;
+    layout.with_windows(|win, _, _, layout| {
+        if *win.id() == 1 {
+            tile_pos = layout.tile_pos_in_workspace_view;
+        }
+    });
+
+    assert!(tile_pos.is_some());
+}
+
 #[test]
 fn operations_dont_panic() {
     if std::env::var_os("RUN_SLOW_TESTS").is_none() {
@@ -1700,29 +3703,29 @@ fn operations_dont_panic() {
         Op::MaximizeWindowToEdges { id: Some(1) },
         Op::MaximizeWindowToEdges { id: Some(2) },
         Op::MaximizeWindowToEdges { id: Some(3) },
-        Op::FocusColumnLeft,
-        Op::FocusColumnRight,
-        Op::FocusColumnRightOrFirst,
-        Op::FocusColumnLeftOrLast,
+        Op::FocusGroupLeft,
+        Op::FocusGroupRight,
+        Op::FocusGroupRightOrFirst,
+        Op::FocusGroupLeftOrLast,
         Op::FocusWindowOrMonitorUp(0),
         Op::FocusWindowOrMonitorDown(1),
-        Op::FocusColumnOrMonitorLeft(0),
-        Op::FocusColumnOrMonitorRight(1),
+        Op::FocusGroupOrMonitorLeft(0),
+        Op::FocusGroupOrMonitorRight(1),
         Op::FocusWindowUp,
-        Op::FocusWindowUpOrColumnLeft,
-        Op::FocusWindowUpOrColumnRight,
+        Op::FocusWindowUpOrGroupLeft,
+        Op::FocusWindowUpOrGroupRight,
         Op::FocusWindowOrWorkspaceUp,
         Op::FocusWindowDown,
-        Op::FocusWindowDownOrColumnLeft,
-        Op::FocusWindowDownOrColumnRight,
+        Op::FocusWindowDownOrGroupLeft,
+        Op::FocusWindowDownOrGroupRight,
         Op::FocusWindowOrWorkspaceDown,
-        Op::MoveColumnLeft,
-        Op::MoveColumnRight,
-        Op::MoveColumnLeftOrToMonitorLeft(0),
-        Op::MoveColumnRightOrToMonitorRight(1),
-        Op::ConsumeWindowIntoColumn,
-        Op::ExpelWindowFromColumn,
-        Op::CenterColumn,
+        Op::MoveGroupLeft,
+        Op::MoveGroupRight,
+        Op::MoveGroupLeftOrToMonitorLeft(0),
+        Op::MoveGroupRightOrToMonitorRight(1),
+        Op::ConsumeWindowIntoGroup,
+        Op::ExpelWindowFromGroup,
+        Op::CenterGroup,
         Op::FocusWorkspaceDown,
         Op::FocusWorkspaceUp,
         Op::FocusWorkspace(1),
@@ -1737,10 +3740,10 @@ fn operations_dont_panic() {
             window_id: None,
             workspace_idx: 2,
         },
-        Op::MoveColumnToWorkspaceDown(true),
-        Op::MoveColumnToWorkspaceUp(true),
-        Op::MoveColumnToWorkspace(1, true),
-        Op::MoveColumnToWorkspace(2, true),
+        Op::MoveGroupToWorkspaceDown(true),
+        Op::MoveGroupToWorkspaceUp(true),
+        Op::MoveGroupToWorkspace(1, true),
+        Op::MoveGroupToWorkspace(2, true),
         Op::MoveWindowDown,
         Op::MoveWindowDownOrToWorkspaceDown,
         Op::MoveWindowUp,
@@ -1748,7 +3751,7 @@ fn operations_dont_panic() {
         Op::ConsumeOrExpelWindowLeft { id: None },
         Op::ConsumeOrExpelWindowRight { id: None },
         Op::MoveWorkspaceToOutput(1),
-        Op::ToggleColumnTabbedDisplay,
+        Op::ToggleGroupTabbedDisplay,
     ];
 
     for third in &every_op {
@@ -1790,8 +3793,8 @@ fn operations_from_starting_state_dont_panic() {
         Op::AddWindow {
             params: TestWindowParams::new(3),
         },
-        Op::FocusColumnLeft,
-        Op::ConsumeWindowIntoColumn,
+        Op::FocusGroupLeft,
+        Op::ConsumeWindowIntoGroup,
         Op::AddWindow {
             params: TestWindowParams::new(4),
         },
@@ -1874,29 +3877,29 @@ fn operations_from_starting_state_dont_panic() {
             window: 2,
             is_fullscreen: true,
         },
-        Op::FocusColumnLeft,
-        Op::FocusColumnRight,
-        Op::FocusColumnRightOrFirst,
-        Op::FocusColumnLeftOrLast,
+        Op::FocusGroupLeft,
+        Op::FocusGroupRight,
+        Op::FocusGroupRightOrFirst,
+        Op::FocusGroupLeftOrLast,
         Op::FocusWindowOrMonitorUp(0),
         Op::FocusWindowOrMonitorDown(1),
-        Op::FocusColumnOrMonitorLeft(0),
-        Op::FocusColumnOrMonitorRight(1),
+        Op::FocusGroupOrMonitorLeft(0),
+        Op::FocusGroupOrMonitorRight(1),
         Op::FocusWindowUp,
-        Op::FocusWindowUpOrColumnLeft,
-        Op::FocusWindowUpOrColumnRight,
+        Op::FocusWindowUpOrGroupLeft,
+        Op::FocusWindowUpOrGroupRight,
         Op::FocusWindowOrWorkspaceUp,
         Op::FocusWindowDown,
-        Op::FocusWindowDownOrColumnLeft,
-        Op::FocusWindowDownOrColumnRight,
+        Op::FocusWindowDownOrGroupLeft,
+        Op::FocusWindowDownOrGroupRight,
         Op::FocusWindowOrWorkspaceDown,
-        Op::MoveColumnLeft,
-        Op::MoveColumnRight,
-        Op::MoveColumnLeftOrToMonitorLeft(0),
-        Op::MoveColumnRightOrToMonitorRight(1),
-        Op::ConsumeWindowIntoColumn,
-        Op::ExpelWindowFromColumn,
-        Op::CenterColumn,
+        Op::MoveGroupLeft,
+        Op::MoveGroupRight,
+        Op::MoveGroupLeftOrToMonitorLeft(0),
+        Op::MoveGroupRightOrToMonitorRight(1),
+        Op::ConsumeWindowIntoGroup,
+        Op::ExpelWindowFromGroup,
+        Op::CenterGroup,
         Op::FocusWorkspaceDown,
         Op::FocusWorkspaceUp,
         Op::FocusWorkspace(1),
@@ -1916,18 +3919,18 @@ fn operations_from_starting_state_dont_panic() {
             window_id: None,
             workspace_idx: 3,
         },
-        Op::MoveColumnToWorkspaceDown(true),
-        Op::MoveColumnToWorkspaceUp(true),
-        Op::MoveColumnToWorkspace(1, true),
-        Op::MoveColumnToWorkspace(2, true),
-        Op::MoveColumnToWorkspace(3, true),
+        Op::MoveGroupToWorkspaceDown(true),
+        Op::MoveGroupToWorkspaceUp(true),
+        Op::MoveGroupToWorkspace(1, true),
+        Op::MoveGroupToWorkspace(2, true),
+        Op::MoveGroupToWorkspace(3, true),
         Op::MoveWindowDown,
         Op::MoveWindowDownOrToWorkspaceDown,
         Op::MoveWindowUp,
         Op::MoveWindowUpOrToWorkspaceUp,
         Op::ConsumeOrExpelWindowLeft { id: None },
         Op::ConsumeOrExpelWindowRight { id: None },
-        Op::ToggleColumnTabbedDisplay,
+        Op::ToggleGroupTabbedDisplay,
     ];
 
     for third in &every_op {
@@ -2240,8 +4243,8 @@ fn workspace_transfer_during_switch_gets_cleaned_up() {
         },
         Op::RemoveOutput(1),
         Op::AddOutput(2),
-        Op::MoveColumnToWorkspaceDown(true),
-        Op::MoveColumnToWorkspaceDown(true),
+        Op::MoveGroupToWorkspaceDown(true),
+        Op::MoveGroupToWorkspaceDown(true),
         Op::AddOutput(1),
     ];
 
@@ -3043,7 +5046,7 @@ fn set_width_fixed_negative() {
             params: TestWindowParams::new(3),
         },
         Op::ToggleWindowFloating { id: Some(3) },
-        Op::SetColumnWidth(SizeChange::SetFixed(-100)),
+        Op::SetGroupWidth(SizeChange::SetFixed(-100)),
     ];
     check_ops(ops);
 }
@@ -3326,9 +5329,9 @@ fn removing_window_above_preserves_focused_window() {
         Op::AddWindow {
             params: TestWindowParams::new(2),
         },
-        Op::FocusColumnFirst,
-        Op::ConsumeWindowIntoColumn,
-        Op::ConsumeWindowIntoColumn,
+        Op::FocusGroupFirst,
+        Op::ConsumeWindowIntoGroup,
+        Op::ConsumeWindowIntoGroup,
         Op::FocusWindowDown,
         Op::CloseWindow(0),
     ];
@@ -3345,12 +5348,12 @@ fn preset_column_width_fixed_correct_with_border() {
         Op::AddWindow {
             params: TestWindowParams::new(0),
         },
-        Op::SwitchPresetColumnWidth,
+        Op::SwitchPresetGroupWidth,
     ];
 
     let options = Options {
         layout: niri_config::Layout {
-            preset_column_widths: vec![PresetSize::Fixed(500)],
+            preset_group_widths: vec![PresetSize::Fixed(500)],
             ..Default::default()
         },
         ..Default::default()
@@ -3363,7 +5366,7 @@ fn preset_column_width_fixed_correct_with_border() {
     // Add border.
     let options = Options {
         layout: niri_config::Layout {
-            preset_column_widths: vec![PresetSize::Fixed(500)],
+            preset_group_widths: vec![PresetSize::Fixed(500)],
             border: niri_config::Border {
                 off: false,
                 width: 5.,
@@ -3392,17 +5395,17 @@ fn preset_column_width_reset_after_set_width() {
         Op::AddWindow {
             params: TestWindowParams::new(0),
         },
-        Op::SwitchPresetColumnWidth,
+        Op::SwitchPresetGroupWidth,
         Op::SetWindowWidth {
             id: None,
             change: SizeChange::AdjustFixed(-10),
         },
-        Op::SwitchPresetColumnWidth,
+        Op::SwitchPresetGroupWidth,
     ];
 
     let options = Options {
         layout: niri_config::Layout {
-            preset_column_widths: vec![PresetSize::Fixed(500), PresetSize::Fixed(1000)],
+            preset_group_widths: vec![PresetSize::Fixed(500), PresetSize::Fixed(1000)],
             ..Default::default()
         },
         ..Default::default()
@@ -3486,7 +5489,7 @@ fn move_column_to_workspace_down_focus_false_on_floating_window() {
             params: TestWindowParams::new(2),
         },
         Op::ToggleWindowFloating { id: None },
-        Op::MoveColumnToWorkspaceDown(false),
+        Op::MoveGroupToWorkspaceDown(false),
     ];
 
     let layout = check_ops(ops);
@@ -3509,7 +5512,7 @@ fn move_column_to_workspace_focus_false_on_floating_window() {
             params: TestWindowParams::new(2),
         },
         Op::ToggleWindowFloating { id: None },
-        Op::MoveColumnToWorkspace(1, false),
+        Op::MoveGroupToWorkspace(1, false),
     ];
 
     let layout = check_ops(ops);
@@ -3594,7 +5597,7 @@ fn move_column_to_workspace_maximize_and_fullscreen() {
         },
         Op::MaximizeWindowToEdges { id: None },
         Op::FullscreenWindow(1),
-        Op::MoveColumnToWorkspaceDown(true),
+        Op::MoveGroupToWorkspaceDown(true),
         Op::FullscreenWindow(1),
     ];
 
@@ -3647,7 +5650,7 @@ fn tabs_with_different_border() {
             },
         },
         Op::SwitchPresetWindowHeight { id: None },
-        Op::ToggleColumnTabbedDisplay,
+        Op::ToggleGroupTabbedDisplay,
         Op::AddWindow {
             params: TestWindowParams::new(3),
         },
@@ -3679,7 +5682,7 @@ fn expel_pending_left_from_fullscreen_tabbed_column() {
         Op::FullscreenWindow(1),
         Op::Communicate(1),
         // 1 is now fullscreen, view_offset_to_restore is set.
-        Op::ToggleColumnTabbedDisplay,
+        Op::ToggleGroupTabbedDisplay,
         Op::AddWindow {
             params: TestWindowParams::new(2),
         },
@@ -3888,6 +5891,7 @@ prop_compose! {
         center_focused_column in prop::option::of(arbitrary_center_focused_column()),
         always_center_single_column in prop::option::of(any::<bool>().prop_map(Flag)),
         empty_workspace_above_first in prop::option::of(any::<bool>().prop_map(Flag)),
+        orientation in prop::option::of(arbitrary_orientation()),
     ) -> niri_config::LayoutPart {
         niri_config::LayoutPart {
             gaps,
@@ -3899,6 +5903,7 @@ prop_compose! {
             border,
             shadow,
             tab_indicator,
+            orientation,
             ..Default::default()
         }
     }

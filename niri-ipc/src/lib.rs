@@ -185,7 +185,9 @@ pub struct PickedColor {
 
 /// Actions that niri can perform.
 // Variants in this enum should match the spelling of the ones in niri-config. Most, but not all,
-// variants from niri-config should be present here.
+// variants from niri-config should be present here. Column-named variants are legacy spellings
+// kept for compatibility; each has a canonical group-named twin, and both must convert to the
+// same niri-config action.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[cfg_attr(feature = "clap", derive(clap::Parser))]
 #[cfg_attr(feature = "clap", command(subcommand_value_name = "ACTION"))]
@@ -325,8 +327,18 @@ pub enum Action {
         id: u64,
     },
     /// Focus a window in the focused column by index.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     FocusWindowInColumn {
         /// Index of the window in the column.
+        ///
+        /// The index starts from 1 for the topmost window.
+        #[cfg_attr(feature = "clap", arg())]
+        index: u8,
+    },
+    /// Focus a window in the focused group by index.
+    FocusWindowInGroup {
+        /// Index of the window in the group.
         ///
         /// The index starts from 1 for the topmost window.
         #[cfg_attr(feature = "clap", arg())]
@@ -335,18 +347,52 @@ pub enum Action {
     /// Focus the previously focused window.
     FocusWindowPrevious {},
     /// Focus the column to the left.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     FocusColumnLeft {},
+    /// Focus the group to the left.
+    FocusGroupLeft {},
     /// Focus the column to the right.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     FocusColumnRight {},
+    /// Focus the group to the right.
+    FocusGroupRight {},
     /// Focus the first column.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     FocusColumnFirst {},
+    /// Focus the first group.
+    FocusGroupFirst {},
     /// Focus the last column.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     FocusColumnLast {},
+    /// Focus the last group.
+    FocusGroupLast {},
     /// Focus the next column to the right, looping if at end.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     FocusColumnRightOrFirst {},
+    /// Focus the next group to the right, looping if at end.
+    FocusGroupRightOrFirst {},
     /// Focus the next column to the left, looping if at start.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     FocusColumnLeftOrLast {},
+    /// Focus the next group to the left, looping if at start.
+    FocusGroupLeftOrLast {},
+    /// Focus the next group below, looping if at end.
+    FocusGroupDownOrFirst {},
+    /// Focus the next group above, looping if at start.
+    FocusGroupUpOrLast {},
+    /// Focus the group above.
+    FocusGroupUp {},
+    /// Focus the group below.
+    FocusGroupDown {},
     /// Focus a column by index.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     FocusColumn {
         /// Index of the column to focus.
         ///
@@ -354,30 +400,94 @@ pub enum Action {
         #[cfg_attr(feature = "clap", arg())]
         index: usize,
     },
+    /// Focus a group by index.
+    FocusGroup {
+        /// Index of the group to focus.
+        ///
+        /// The index starts from 1 for the first group.
+        #[cfg_attr(feature = "clap", arg())]
+        index: usize,
+    },
     /// Focus the window or the monitor above.
     FocusWindowOrMonitorUp {},
     /// Focus the window or the monitor below.
     FocusWindowOrMonitorDown {},
+    /// Focus the window or the monitor to the left.
+    FocusWindowOrMonitorLeft {},
+    /// Focus the window or the monitor to the right.
+    FocusWindowOrMonitorRight {},
     /// Focus the column or the monitor to the left.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     FocusColumnOrMonitorLeft {},
+    /// Focus the group or the monitor to the left.
+    FocusGroupOrMonitorLeft {},
     /// Focus the column or the monitor to the right.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     FocusColumnOrMonitorRight {},
+    /// Focus the group or the monitor to the right.
+    FocusGroupOrMonitorRight {},
+    /// Focus the group or the monitor above.
+    FocusGroupOrMonitorUp {},
+    /// Focus the group or the monitor below.
+    FocusGroupOrMonitorDown {},
     /// Focus the window below.
     FocusWindowDown {},
     /// Focus the window above.
     FocusWindowUp {},
+    /// Focus the window to the left.
+    FocusWindowLeft {},
+    /// Focus the window to the right.
+    FocusWindowRight {},
+    /// Focus the window or the group to the left, whichever lies that way.
+    FocusWindowOrGroupLeft {},
+    /// Focus the window or the group to the right, whichever lies that way.
+    FocusWindowOrGroupRight {},
+    /// Focus the window or the group above, whichever lies that way.
+    FocusWindowOrGroupUp {},
+    /// Focus the window or the group below, whichever lies that way.
+    FocusWindowOrGroupDown {},
     /// Focus the window below or the column to the left.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     FocusWindowDownOrColumnLeft {},
+    /// Focus the window below or the group to the left.
+    FocusWindowDownOrGroupLeft {},
     /// Focus the window below or the column to the right.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     FocusWindowDownOrColumnRight {},
+    /// Focus the window below or the group to the right.
+    FocusWindowDownOrGroupRight {},
     /// Focus the window above or the column to the left.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     FocusWindowUpOrColumnLeft {},
+    /// Focus the window above or the group to the left.
+    FocusWindowUpOrGroupLeft {},
     /// Focus the window above or the column to the right.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     FocusWindowUpOrColumnRight {},
+    /// Focus the window above or the group to the right.
+    FocusWindowUpOrGroupRight {},
+    /// Focus the window to the right or the group above.
+    FocusWindowRightOrGroupUp {},
+    /// Focus the window to the right or the group below.
+    FocusWindowRightOrGroupDown {},
+    /// Focus the window to the left or the group above.
+    FocusWindowLeftOrGroupUp {},
+    /// Focus the window to the left or the group below.
+    FocusWindowLeftOrGroupDown {},
     /// Focus the window or the workspace below.
     FocusWindowOrWorkspaceDown {},
     /// Focus the window or the workspace above.
     FocusWindowOrWorkspaceUp {},
+    /// Focus the window or the workspace to the left.
+    FocusWindowOrWorkspaceLeft {},
+    /// Focus the window or the workspace to the right.
+    FocusWindowOrWorkspaceRight {},
     /// Focus the topmost window.
     FocusWindowTop {},
     /// Focus the bottommost window.
@@ -386,19 +496,57 @@ pub enum Action {
     FocusWindowDownOrTop {},
     /// Focus the window above or the bottommost window.
     FocusWindowUpOrBottom {},
+    /// Focus the first window in the focused column.
+    FocusWindowFirst {},
+    /// Focus the last window in the focused column.
+    FocusWindowLast {},
+    /// Focus the leftmost window in the focused column.
+    FocusWindowLeftmost {},
+    /// Focus the rightmost window in the focused column.
+    FocusWindowRightmost {},
+    /// Focus the window to the right, or the leftmost window.
+    FocusWindowRightOrLeftmost {},
+    /// Focus the window to the left, or the rightmost window.
+    FocusWindowLeftOrRightmost {},
     /// Move the focused column to the left.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     MoveColumnLeft {},
+    /// Move the focused group to the left.
+    MoveGroupLeft {},
     /// Move the focused column to the right.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     MoveColumnRight {},
+    /// Move the focused group to the right.
+    MoveGroupRight {},
     /// Move the focused column to the start of the workspace.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     MoveColumnToFirst {},
+    /// Move the focused group to the start of the workspace.
+    MoveGroupToFirst {},
     /// Move the focused column to the end of the workspace.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     MoveColumnToLast {},
+    /// Move the focused group to the end of the workspace.
+    MoveGroupToLast {},
     /// Move the focused column to the left or to the monitor to the left.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     MoveColumnLeftOrToMonitorLeft {},
+    /// Move the focused group to the left or to the monitor to the left.
+    MoveGroupLeftOrToMonitorLeft {},
     /// Move the focused column to the right or to the monitor to the right.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     MoveColumnRightOrToMonitorRight {},
+    /// Move the focused group to the right or to the monitor to the right.
+    MoveGroupRightOrToMonitorRight {},
     /// Move the focused column to a specific index on its workspace.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     MoveColumnToIndex {
         /// New index for the column.
         ///
@@ -406,14 +554,46 @@ pub enum Action {
         #[cfg_attr(feature = "clap", arg())]
         index: usize,
     },
+    /// Move the focused group to a specific index on its workspace.
+    MoveGroupToIndex {
+        /// New index for the group.
+        ///
+        /// The index starts from 1 for the first group.
+        #[cfg_attr(feature = "clap", arg())]
+        index: usize,
+    },
+    /// Move the focused group up.
+    MoveGroupUp {},
+    /// Move the focused group down.
+    MoveGroupDown {},
+    /// Move the focused group up or to the monitor above.
+    MoveGroupUpOrToMonitorUp {},
+    /// Move the focused group down or to the monitor below.
+    MoveGroupDownOrToMonitorDown {},
     /// Move the focused window down in a column.
     MoveWindowDown {},
     /// Move the focused window up in a column.
     MoveWindowUp {},
+    /// Move the focused window to the left.
+    MoveWindowLeft {},
+    /// Move the focused window to the right.
+    MoveWindowRight {},
+    /// Move the window within its group or the whole group to the left, whichever lies that way.
+    MoveWindowOrGroupLeft {},
+    /// Move the window within its group or the whole group to the right, whichever lies that way.
+    MoveWindowOrGroupRight {},
+    /// Move the window within its group or the whole group up, whichever lies that way.
+    MoveWindowOrGroupUp {},
+    /// Move the window within its group or the whole group down, whichever lies that way.
+    MoveWindowOrGroupDown {},
     /// Move the focused window down in a column or to the workspace below.
     MoveWindowDownOrToWorkspaceDown {},
     /// Move the focused window up in a column or to the workspace above.
     MoveWindowUpOrToWorkspaceUp {},
+    /// Move the focused window to the right or to the workspace to the right.
+    MoveWindowRightOrToWorkspaceRight {},
+    /// Move the focused window to the left or to the workspace to the left.
+    MoveWindowLeftOrToWorkspaceLeft {},
     /// Consume or expel a window left.
     #[cfg_attr(
         feature = "clap",
@@ -438,24 +618,76 @@ pub enum Action {
         #[cfg_attr(feature = "clap", arg(long))]
         id: Option<u64>,
     },
-    /// Consume the window to the right into the focused column.
+    /// Consume or expel a window up.
+    #[cfg_attr(
+        feature = "clap",
+        clap(about = "Consume or expel the focused window up")
+    )]
+    ConsumeOrExpelWindowUp {
+        /// Id of the window to consume or expel.
+        ///
+        /// If `None`, uses the focused window.
+        #[cfg_attr(feature = "clap", arg(long))]
+        id: Option<u64>,
+    },
+    /// Consume or expel a window down.
+    #[cfg_attr(
+        feature = "clap",
+        clap(about = "Consume or expel the focused window down")
+    )]
+    ConsumeOrExpelWindowDown {
+        /// Id of the window to consume or expel.
+        ///
+        /// If `None`, uses the focused window.
+        #[cfg_attr(feature = "clap", arg(long))]
+        id: Option<u64>,
+    },
+    /// Consume the window after the focused column into it.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     ConsumeWindowIntoColumn {},
-    /// Expel the bottom window from the focused column.
+    /// Consume the window to the right into the focused group.
+    ConsumeWindowIntoGroup {},
+    /// Expel the last window from the focused column.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     ExpelWindowFromColumn {},
+    /// Expel the bottom window from the focused group.
+    ExpelWindowFromGroup {},
     /// Swap focused window with one to the right.
     SwapWindowRight {},
     /// Swap focused window with one to the left.
     SwapWindowLeft {},
+    /// Swap focused window with one above.
+    SwapWindowUp {},
+    /// Swap focused window with one below.
+    SwapWindowDown {},
     /// Toggle the focused column between normal and tabbed display.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     ToggleColumnTabbedDisplay {},
+    /// Toggle the focused group between normal and tabbed display.
+    ToggleGroupTabbedDisplay {},
     /// Set the display mode of the focused column.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     SetColumnDisplay {
         /// Display mode to set.
         #[cfg_attr(feature = "clap", arg())]
         display: ColumnDisplay,
     },
+    /// Set the display mode of the focused group.
+    SetGroupDisplay {
+        /// Display mode to set.
+        #[cfg_attr(feature = "clap", arg())]
+        display: ColumnDisplay,
+    },
     /// Center the focused column on the screen.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     CenterColumn {},
+    /// Center the focused group on the screen.
+    CenterGroup {},
     /// Center a window on the screen.
     #[cfg_attr(
         feature = "clap",
@@ -469,11 +701,19 @@ pub enum Action {
         id: Option<u64>,
     },
     /// Center all fully visible columns on the screen.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     CenterVisibleColumns {},
+    /// Center all fully visible groups on the screen.
+    CenterVisibleGroups {},
     /// Focus the workspace below.
     FocusWorkspaceDown {},
     /// Focus the workspace above.
     FocusWorkspaceUp {},
+    /// Focus the workspace to the left.
+    FocusWorkspaceLeft {},
+    /// Focus the workspace to the right.
+    FocusWorkspaceRight {},
     /// Focus a workspace by reference (index or name).
     FocusWorkspace {
         /// Reference (index or name) of the workspace to focus.
@@ -493,6 +733,24 @@ pub enum Action {
     },
     /// Move the focused window to the workspace above.
     MoveWindowToWorkspaceUp {
+        /// Whether the focus should follow the target workspace.
+        ///
+        /// If `true` (the default), the focus will follow the window to the new workspace. If
+        /// `false`, the focus will remain on the original workspace.
+        #[cfg_attr(feature = "clap", arg(long, action = clap::ArgAction::Set, default_value_t = true))]
+        focus: bool,
+    },
+    /// Move the focused window to the workspace to the left.
+    MoveWindowToWorkspaceLeft {
+        /// Whether the focus should follow the target workspace.
+        ///
+        /// If `true` (the default), the focus will follow the window to the new workspace. If
+        /// `false`, the focus will remain on the original workspace.
+        #[cfg_attr(feature = "clap", arg(long, action = clap::ArgAction::Set, default_value_t = true))]
+        focus: bool,
+    },
+    /// Move the focused window to the workspace to the right.
+    MoveWindowToWorkspaceRight {
         /// Whether the focus should follow the target workspace.
         ///
         /// If `true` (the default), the focus will follow the window to the new workspace. If
@@ -525,6 +783,8 @@ pub enum Action {
         focus: bool,
     },
     /// Move the focused column to the workspace below.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     MoveColumnToWorkspaceDown {
         /// Whether the focus should follow the target workspace.
         ///
@@ -533,7 +793,18 @@ pub enum Action {
         #[cfg_attr(feature = "clap", arg(long, action = clap::ArgAction::Set, default_value_t = true))]
         focus: bool,
     },
+    /// Move the focused group to the workspace below.
+    MoveGroupToWorkspaceDown {
+        /// Whether the focus should follow the target workspace.
+        ///
+        /// If `true` (the default), the focus will follow the group to the new workspace. If
+        /// `false`, the focus will remain on the original workspace.
+        #[cfg_attr(feature = "clap", arg(long, action = clap::ArgAction::Set, default_value_t = true))]
+        focus: bool,
+    },
     /// Move the focused column to the workspace above.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     MoveColumnToWorkspaceUp {
         /// Whether the focus should follow the target workspace.
         ///
@@ -542,7 +813,36 @@ pub enum Action {
         #[cfg_attr(feature = "clap", arg(long, action = clap::ArgAction::Set, default_value_t = true))]
         focus: bool,
     },
+    /// Move the focused group to the workspace above.
+    MoveGroupToWorkspaceUp {
+        /// Whether the focus should follow the target workspace.
+        ///
+        /// If `true` (the default), the focus will follow the group to the new workspace. If
+        /// `false`, the focus will remain on the original workspace.
+        #[cfg_attr(feature = "clap", arg(long, action = clap::ArgAction::Set, default_value_t = true))]
+        focus: bool,
+    },
+    /// Move the focused group to the workspace to the left.
+    MoveGroupToWorkspaceLeft {
+        /// Whether the focus should follow the target workspace.
+        ///
+        /// If `true` (the default), the focus will follow the group to the new workspace. If
+        /// `false`, the focus will remain on the original workspace.
+        #[cfg_attr(feature = "clap", arg(long, action = clap::ArgAction::Set, default_value_t = true))]
+        focus: bool,
+    },
+    /// Move the focused group to the workspace to the right.
+    MoveGroupToWorkspaceRight {
+        /// Whether the focus should follow the target workspace.
+        ///
+        /// If `true` (the default), the focus will follow the group to the new workspace. If
+        /// `false`, the focus will remain on the original workspace.
+        #[cfg_attr(feature = "clap", arg(long, action = clap::ArgAction::Set, default_value_t = true))]
+        focus: bool,
+    },
     /// Move the focused column to a workspace by reference (index or name).
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     MoveColumnToWorkspace {
         /// Reference (index or name) of the workspace to move the column to.
         #[cfg_attr(feature = "clap", arg())]
@@ -555,10 +855,27 @@ pub enum Action {
         #[cfg_attr(feature = "clap", arg(long, action = clap::ArgAction::Set, default_value_t = true))]
         focus: bool,
     },
+    /// Move the focused group to a workspace by reference (index or name).
+    MoveGroupToWorkspace {
+        /// Reference (index or name) of the workspace to move the group to.
+        #[cfg_attr(feature = "clap", arg())]
+        reference: WorkspaceReferenceArg,
+
+        /// Whether the focus should follow the target workspace.
+        ///
+        /// If `true` (the default), the focus will follow the group to the new workspace. If
+        /// `false`, the focus will remain on the original workspace.
+        #[cfg_attr(feature = "clap", arg(long, action = clap::ArgAction::Set, default_value_t = true))]
+        focus: bool,
+    },
     /// Move the focused workspace down.
     MoveWorkspaceDown {},
     /// Move the focused workspace up.
     MoveWorkspaceUp {},
+    /// Move the focused workspace to the left.
+    MoveWorkspaceLeft {},
+    /// Move the focused workspace to the right.
+    MoveWorkspaceRight {},
     /// Move a workspace to a specific index on its monitor.
     #[cfg_attr(
         feature = "clap",
@@ -650,19 +967,51 @@ pub enum Action {
         output: String,
     },
     /// Move the focused column to the monitor to the left.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     MoveColumnToMonitorLeft {},
+    /// Move the focused group to the monitor to the left.
+    MoveGroupToMonitorLeft {},
     /// Move the focused column to the monitor to the right.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     MoveColumnToMonitorRight {},
+    /// Move the focused group to the monitor to the right.
+    MoveGroupToMonitorRight {},
     /// Move the focused column to the monitor below.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     MoveColumnToMonitorDown {},
+    /// Move the focused group to the monitor below.
+    MoveGroupToMonitorDown {},
     /// Move the focused column to the monitor above.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     MoveColumnToMonitorUp {},
+    /// Move the focused group to the monitor above.
+    MoveGroupToMonitorUp {},
     /// Move the focused column to the previous monitor.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     MoveColumnToMonitorPrevious {},
+    /// Move the focused group to the previous monitor.
+    MoveGroupToMonitorPrevious {},
     /// Move the focused column to the next monitor.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     MoveColumnToMonitorNext {},
+    /// Move the focused group to the next monitor.
+    MoveGroupToMonitorNext {},
     /// Move the focused column to a specific monitor.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     MoveColumnToMonitor {
+        /// The target output name.
+        #[cfg_attr(feature = "clap", arg())]
+        output: String,
+    },
+    /// Move the focused group to a specific monitor.
+    MoveGroupToMonitor {
         /// The target output name.
         #[cfg_attr(feature = "clap", arg())]
         output: String,
@@ -712,9 +1061,33 @@ pub enum Action {
         id: Option<u64>,
     },
     /// Switch between preset column widths.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
+    ///
+    /// Does nothing on vertical-orientation workspaces.
     SwitchPresetColumnWidth {},
+    /// Switch between preset group widths.
+    ///
+    /// Does nothing on vertical-orientation workspaces.
+    SwitchPresetGroupWidth {},
     /// Switch between preset column widths backwards.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
+    ///
+    /// Does nothing on vertical-orientation workspaces.
     SwitchPresetColumnWidthBack {},
+    /// Switch between preset group widths backwards.
+    ///
+    /// Does nothing on vertical-orientation workspaces.
+    SwitchPresetGroupWidthBack {},
+    /// Switch between preset group heights.
+    ///
+    /// Does nothing on horizontal-orientation workspaces.
+    SwitchPresetGroupHeight {},
+    /// Switch between preset group heights backwards.
+    ///
+    /// Does nothing on horizontal-orientation workspaces.
+    SwitchPresetGroupHeightBack {},
     /// Switch between preset window widths.
     SwitchPresetWindowWidth {
         /// Id of the window whose width to switch.
@@ -748,7 +1121,11 @@ pub enum Action {
         id: Option<u64>,
     },
     /// Toggle the maximized state of the focused column.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
     MaximizeColumn {},
+    /// Toggle the maximized state of the focused group.
+    MaximizeGroup {},
     /// Toggle the maximized-to-edges state of the focused window.
     MaximizeWindowToEdges {
         /// Id of the window to maximize.
@@ -758,13 +1135,46 @@ pub enum Action {
         id: Option<u64>,
     },
     /// Change the width of the focused column.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
+    ///
+    /// Does nothing on vertical-orientation workspaces.
     SetColumnWidth {
         /// How to change the width.
         #[cfg_attr(feature = "clap", arg(allow_hyphen_values = true))]
         change: SizeChange,
     },
+    /// Change the width of the focused group.
+    ///
+    /// Does nothing on vertical-orientation workspaces.
+    SetGroupWidth {
+        /// How to change the width.
+        #[cfg_attr(feature = "clap", arg(allow_hyphen_values = true))]
+        change: SizeChange,
+    },
     /// Expand the focused column to space not taken up by other fully visible columns.
+    ///
+    /// Legacy spelling of the same action; prefer the group name.
+    ///
+    /// Does nothing on vertical-orientation workspaces.
     ExpandColumnToAvailableWidth {},
+    /// Expand the focused group to space not taken up by other fully visible groups.
+    ///
+    /// Does nothing on vertical-orientation workspaces.
+    ExpandGroupToAvailableWidth {},
+    /// Change the height of the focused group.
+    ///
+    /// Does nothing on horizontal-orientation workspaces.
+    SetGroupHeight {
+        /// How to change the height.
+        #[cfg_attr(feature = "clap", arg(allow_hyphen_values = true))]
+        change: SizeChange,
+    },
+    /// Expand the focused group to space not taken up by other fully visible groups on the
+    /// vertical strip.
+    ///
+    /// Does nothing on horizontal-orientation workspaces.
+    ExpandGroupToAvailableHeight {},
     /// Switch between keyboard layouts.
     SwitchLayout {
         /// Layout to switch to.
@@ -1402,8 +1812,8 @@ pub struct WindowLayout {
     /// Location of a tiled window within a workspace: (column index, tile index in column).
     ///
     /// The indices are 1-based, i.e. the leftmost column is at index 1 and the topmost tile in a
-    /// column is at index 1. This is consistent with [`Action::FocusColumn`] and
-    /// [`Action::FocusWindowInColumn`].
+    /// column is at index 1. This is consistent with [`Action::FocusGroup`] and
+    /// [`Action::FocusWindowInGroup`].
     pub pos_in_scrolling_layout: Option<(usize, usize)>,
     /// Size of the tile this window is in, including decorations like borders.
     pub tile_size: (f64, f64),
@@ -2103,6 +2513,19 @@ impl OutputAction {
 mod tests {
     use super::*;
 
+    /// Building the clap Command for the many-variant Action enum needs more stack than a
+    /// default test thread provides (reproducible under workspace feature unification, where
+    /// clap gains the `string` feature), so CLI tests run on a dedicated 16 MiB thread.
+    #[cfg(feature = "clap")]
+    fn run_with_big_stack(f: impl FnOnce() + Send + 'static) {
+        std::thread::Builder::new()
+            .stack_size(16 * 1024 * 1024)
+            .spawn(f)
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
     #[test]
     fn parse_size_change() {
         assert_eq!(
@@ -2163,5 +2586,227 @@ mod tests {
         );
         assert!("-".parse::<PositionChange>().is_err());
         assert!("10% ".parse::<PositionChange>().is_err());
+    }
+
+    #[test]
+    fn group_and_legacy_action_names_deserialize() {
+        let group: Action = serde_json::from_str(r#"{"FocusGroupLeft":{}}"#).unwrap();
+        assert!(matches!(group, Action::FocusGroupLeft {}));
+
+        let legacy: Action = serde_json::from_str(r#"{"FocusColumnLeft":{}}"#).unwrap();
+        assert!(matches!(legacy, Action::FocusColumnLeft {}));
+
+        let group: Action = serde_json::from_str(r#"{"SwitchPresetGroupWidth":{}}"#).unwrap();
+        assert!(matches!(group, Action::SwitchPresetGroupWidth {}));
+
+        let legacy: Action = serde_json::from_str(r#"{"SwitchPresetColumnWidth":{}}"#).unwrap();
+        assert!(matches!(legacy, Action::SwitchPresetColumnWidth {}));
+    }
+
+    #[test]
+    fn group_height_action_names_deserialize() {
+        let action: Action = serde_json::from_str(r#"{"SwitchPresetGroupHeight":{}}"#).unwrap();
+        assert!(matches!(action, Action::SwitchPresetGroupHeight {}));
+
+        let action: Action = serde_json::from_str(r#"{"SwitchPresetGroupHeightBack":{}}"#).unwrap();
+        assert!(matches!(action, Action::SwitchPresetGroupHeightBack {}));
+
+        let action: Action =
+            serde_json::from_str(r#"{"SetGroupHeight":{"change":{"SetProportion":50.0}}}"#)
+                .unwrap();
+        assert!(matches!(action, Action::SetGroupHeight { .. }));
+
+        let action: Action =
+            serde_json::from_str(r#"{"ExpandGroupToAvailableHeight":{}}"#).unwrap();
+        assert!(matches!(action, Action::ExpandGroupToAvailableHeight {}));
+    }
+
+    #[cfg(feature = "clap")]
+    #[test]
+    fn group_action_names_parse_in_cli() {
+        run_with_big_stack(|| {
+            use clap::Parser as _;
+
+            let cases: &[(&str, &[&str])] = &[
+                ("focus-group-left", &[]),
+                ("focus-group-right", &[]),
+                ("focus-group-first", &[]),
+                ("focus-group-last", &[]),
+                ("focus-group-right-or-first", &[]),
+                ("focus-group-left-or-last", &[]),
+                ("focus-group", &["3"]),
+                ("focus-window-in-group", &["2"]),
+                ("focus-group-or-monitor-left", &[]),
+                ("focus-group-or-monitor-right", &[]),
+                ("focus-window-down-or-group-left", &[]),
+                ("focus-window-down-or-group-right", &[]),
+                ("focus-window-up-or-group-left", &[]),
+                ("focus-window-up-or-group-right", &[]),
+                ("move-group-left", &[]),
+                ("move-group-right", &[]),
+                ("move-group-to-first", &[]),
+                ("move-group-to-last", &[]),
+                ("move-group-left-or-to-monitor-left", &[]),
+                ("move-group-right-or-to-monitor-right", &[]),
+                ("move-group-to-index", &["3"]),
+                ("consume-window-into-group", &[]),
+                ("expel-window-from-group", &[]),
+                ("toggle-group-tabbed-display", &[]),
+                ("set-group-display", &["tabbed"]),
+                ("center-group", &[]),
+                ("center-visible-groups", &[]),
+                ("move-group-to-workspace-down", &[]),
+                ("move-group-to-workspace-up", &[]),
+                ("move-group-to-workspace", &["2"]),
+                ("move-group-to-monitor-left", &[]),
+                ("move-group-to-monitor-right", &[]),
+                ("move-group-to-monitor-down", &[]),
+                ("move-group-to-monitor-up", &[]),
+                ("move-group-to-monitor-previous", &[]),
+                ("move-group-to-monitor-next", &[]),
+                ("move-group-to-monitor", &["DP-1"]),
+                ("maximize-group", &[]),
+                ("switch-preset-group-width", &[]),
+                ("switch-preset-group-width-back", &[]),
+                ("set-group-width", &["50%"]),
+                ("expand-group-to-available-width", &[]),
+                ("switch-preset-group-height", &[]),
+                ("switch-preset-group-height-back", &[]),
+                ("set-group-height", &["50%"]),
+                ("expand-group-to-available-height", &[]),
+            ];
+
+            for (name, args) in cases {
+                let mut argv = vec!["action", *name];
+                argv.extend(*args);
+                Action::try_parse_from(&argv)
+                    .unwrap_or_else(|e| panic!("`{name}` failed to parse: {e}"));
+            }
+        });
+    }
+
+    #[cfg(feature = "clap")]
+    #[test]
+    fn core_spatial_actions_parse_in_cli() {
+        run_with_big_stack(|| {
+            use clap::Parser as _;
+
+            let cases: &[&str] = &[
+                "focus-group-up",
+                "focus-group-down",
+                "move-group-up",
+                "move-group-down",
+                "focus-window-left",
+                "focus-window-right",
+                "move-window-left",
+                "move-window-right",
+                "swap-window-up",
+                "swap-window-down",
+                "consume-or-expel-window-up",
+                "consume-or-expel-window-down",
+                "focus-workspace-left",
+                "focus-workspace-right",
+                "move-workspace-left",
+                "move-workspace-right",
+                "move-group-to-workspace-left",
+                "move-group-to-workspace-right",
+                "move-window-to-workspace-left",
+                "move-window-to-workspace-right",
+            ];
+            for name in cases {
+                Action::try_parse_from(["action", name])
+                    .unwrap_or_else(|e| panic!("`{name}` failed to parse: {e}"));
+            }
+        });
+    }
+
+    #[test]
+    fn core_spatial_actions_deserialize() {
+        let a: Action = serde_json::from_str(r#"{"FocusGroupUp":{}}"#).unwrap();
+        assert_eq!(format!("{a:?}"), format!("{:?}", Action::FocusGroupUp {}));
+
+        let b: Action =
+            serde_json::from_str(r#"{"MoveGroupToWorkspaceLeft":{"focus":true}}"#).unwrap();
+        assert_eq!(
+            format!("{b:?}"),
+            format!("{:?}", Action::MoveGroupToWorkspaceLeft { focus: true })
+        );
+    }
+
+    #[cfg(feature = "clap")]
+    #[test]
+    fn composite_spatial_actions_parse_in_cli() {
+        run_with_big_stack(|| {
+            use clap::Parser as _;
+
+            let cases: &[&str] = &[
+                "focus-group-or-monitor-up",
+                "focus-group-or-monitor-down",
+                "focus-window-or-monitor-left",
+                "focus-window-or-monitor-right",
+                "focus-window-or-workspace-left",
+                "focus-window-or-workspace-right",
+                "move-group-up-or-to-monitor-up",
+                "move-group-down-or-to-monitor-down",
+                "focus-window-right-or-group-up",
+                "focus-window-right-or-group-down",
+                "focus-window-left-or-group-up",
+                "focus-window-left-or-group-down",
+                "focus-group-down-or-first",
+                "focus-group-up-or-last",
+                "move-window-right-or-to-workspace-right",
+                "move-window-left-or-to-workspace-left",
+                "focus-window-first",
+                "focus-window-last",
+                "focus-window-leftmost",
+                "focus-window-rightmost",
+                "focus-window-right-or-leftmost",
+                "focus-window-left-or-rightmost",
+                "focus-window-or-group-left",
+                "focus-window-or-group-right",
+                "focus-window-or-group-up",
+                "focus-window-or-group-down",
+                "move-window-or-group-left",
+                "move-window-or-group-right",
+                "move-window-or-group-up",
+                "move-window-or-group-down",
+            ];
+            for name in cases {
+                Action::try_parse_from(["action", name])
+                    .unwrap_or_else(|e| panic!("`{name}` failed to parse: {e}"));
+            }
+        });
+    }
+
+    #[test]
+    fn composite_spatial_actions_deserialize() {
+        let a: Action = serde_json::from_str(r#"{"FocusGroupOrMonitorUp":{}}"#).unwrap();
+        assert_eq!(
+            format!("{a:?}"),
+            format!("{:?}", Action::FocusGroupOrMonitorUp {})
+        );
+
+        let b: Action = serde_json::from_str(r#"{"FocusGroupDownOrFirst":{}}"#).unwrap();
+        assert_eq!(
+            format!("{b:?}"),
+            format!("{:?}", Action::FocusGroupDownOrFirst {})
+        );
+
+        let c: Action = serde_json::from_str(r#"{"FocusWindowFirst":{}}"#).unwrap();
+        assert_eq!(
+            format!("{c:?}"),
+            format!("{:?}", Action::FocusWindowFirst {})
+        );
+
+        let c: Action = serde_json::from_str(r#"{"FocusWindowOrGroupLeft":{}}"#).unwrap();
+        assert_eq!(
+            format!("{c:?}"),
+            format!("{:?}", Action::FocusWindowOrGroupLeft {})
+        );
+        let d: Action = serde_json::from_str(r#"{"MoveWindowOrGroupDown":{}}"#).unwrap();
+        assert_eq!(
+            format!("{d:?}"),
+            format!("{:?}", Action::MoveWindowOrGroupDown {})
+        );
     }
 }

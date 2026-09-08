@@ -225,8 +225,8 @@ impl<W: LayoutElement> Tile<W> {
         scale: f64,
         options: Rc<Options>,
     ) {
-        // If preset widths or heights changed, clear our stored preset index.
-        if self.options.layout.preset_column_widths != options.layout.preset_column_widths {
+        // If preset widths changed, clear our stored preset index.
+        if self.options.layout.preset_group_widths != options.layout.preset_group_widths {
             self.floating_preset_width_idx = None;
         }
         if self.options.layout.preset_window_heights != options.layout.preset_window_heights {

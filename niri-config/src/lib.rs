@@ -836,6 +836,7 @@ mod tests {
                 }
 
                 center-focused-column "on-overflow"
+                orientation "vertical"
 
                 default-column-display "tabbed"
 
@@ -1448,7 +1449,8 @@ mod tests {
                         },
                     ),
                 },
-                preset_column_widths: [
+                orientation: Vertical,
+                preset_group_widths: [
                     Proportion(
                         0.25,
                     ),
@@ -1462,9 +1464,25 @@ mod tests {
                         1280,
                     ),
                 ],
-                default_column_width: Some(
+                default_group_width: Some(
                     Proportion(
                         0.25,
+                    ),
+                ),
+                preset_group_heights: [
+                    Proportion(
+                        0.3333333333333333,
+                    ),
+                    Proportion(
+                        0.5,
+                    ),
+                    Proportion(
+                        0.6666666666666666,
+                    ),
+                ],
+                default_group_height: Some(
+                    Proportion(
+                        0.5,
                     ),
                 ),
                 preset_window_heights: [
@@ -1799,6 +1817,7 @@ mod tests {
                         },
                     ],
                     default_column_width: None,
+                    default_group_width: None,
                     default_window_height: Some(
                         DefaultPresetSize(
                             Some(
@@ -2132,7 +2151,7 @@ mod tests {
                                 CTRL | ALT | COMPOSITOR,
                             ),
                         },
-                        action: MoveColumnToMonitor(
+                        action: MoveGroupToMonitor(
                             "DP-1",
                         ),
                         repeat: true,
@@ -2150,7 +2169,7 @@ mod tests {
                                 COMPOSITOR,
                             ),
                         },
-                        action: ConsumeWindowIntoColumn,
+                        action: ConsumeWindowIntoGroup,
                         repeat: true,
                         cooldown: None,
                         allow_when_locked: false,
@@ -2501,6 +2520,363 @@ mod tests {
         -                0.6666666666666666,
         +                0.66667,
         "#,
+        );
+    }
+
+    #[test]
+    fn column_spellings_parse_like_group_actions() {
+        let pairs = [
+            ("focus-window-in-column 2", "focus-window-in-group 2"),
+            ("focus-column-left", "focus-group-left"),
+            ("focus-column-right", "focus-group-right"),
+            ("focus-column-first", "focus-group-first"),
+            ("focus-column-last", "focus-group-last"),
+            ("focus-column-right-or-first", "focus-group-right-or-first"),
+            ("focus-column-left-or-last", "focus-group-left-or-last"),
+            ("focus-column 3", "focus-group 3"),
+            (
+                "focus-column-or-monitor-left",
+                "focus-group-or-monitor-left",
+            ),
+            (
+                "focus-column-or-monitor-right",
+                "focus-group-or-monitor-right",
+            ),
+            (
+                "focus-window-down-or-column-left",
+                "focus-window-down-or-group-left",
+            ),
+            (
+                "focus-window-down-or-column-right",
+                "focus-window-down-or-group-right",
+            ),
+            (
+                "focus-window-up-or-column-left",
+                "focus-window-up-or-group-left",
+            ),
+            (
+                "focus-window-up-or-column-right",
+                "focus-window-up-or-group-right",
+            ),
+            ("move-column-left", "move-group-left"),
+            ("move-column-right", "move-group-right"),
+            ("move-column-to-first", "move-group-to-first"),
+            ("move-column-to-last", "move-group-to-last"),
+            (
+                "move-column-left-or-to-monitor-left",
+                "move-group-left-or-to-monitor-left",
+            ),
+            (
+                "move-column-right-or-to-monitor-right",
+                "move-group-right-or-to-monitor-right",
+            ),
+            ("move-column-to-index 3", "move-group-to-index 3"),
+            ("consume-window-into-column", "consume-window-into-group"),
+            ("expel-window-from-column", "expel-window-from-group"),
+            (
+                "toggle-column-tabbed-display",
+                "toggle-group-tabbed-display",
+            ),
+            (
+                r#"set-column-display "tabbed""#,
+                r#"set-group-display "tabbed""#,
+            ),
+            ("center-column", "center-group"),
+            ("center-visible-columns", "center-visible-groups"),
+            (
+                "move-column-to-workspace-down",
+                "move-group-to-workspace-down",
+            ),
+            ("move-column-to-workspace-up", "move-group-to-workspace-up"),
+            ("move-column-to-workspace 2", "move-group-to-workspace 2"),
+            ("move-column-to-monitor-left", "move-group-to-monitor-left"),
+            (
+                "move-column-to-monitor-right",
+                "move-group-to-monitor-right",
+            ),
+            ("move-column-to-monitor-down", "move-group-to-monitor-down"),
+            ("move-column-to-monitor-up", "move-group-to-monitor-up"),
+            (
+                "move-column-to-monitor-previous",
+                "move-group-to-monitor-previous",
+            ),
+            ("move-column-to-monitor-next", "move-group-to-monitor-next"),
+            (
+                r#"move-column-to-monitor "DP-1""#,
+                r#"move-group-to-monitor "DP-1""#,
+            ),
+            ("maximize-column", "maximize-group"),
+        ];
+        for (column, group) in pairs {
+            let a = do_parse(&format!("binds {{ Mod+T {{ {column}; }}\n}}"));
+            let b = do_parse(&format!("binds {{ Mod+T {{ {group}; }}\n}}"));
+            assert_eq!(a.binds, b.binds, "`{column}` should parse like `{group}`");
+        }
+    }
+
+    #[test]
+    fn core_spatial_actions_parse() {
+        let cases = [
+            ("focus-group-up", Action::FocusGroupUp),
+            ("focus-group-down", Action::FocusGroupDown),
+            ("move-group-up", Action::MoveGroupUp),
+            ("move-group-down", Action::MoveGroupDown),
+            ("focus-window-left", Action::FocusWindowLeft),
+            ("focus-window-right", Action::FocusWindowRight),
+            ("move-window-left", Action::MoveWindowLeft),
+            ("move-window-right", Action::MoveWindowRight),
+            ("swap-window-up", Action::SwapWindowUp),
+            ("swap-window-down", Action::SwapWindowDown),
+            ("consume-or-expel-window-up", Action::ConsumeOrExpelWindowUp),
+            (
+                "consume-or-expel-window-down",
+                Action::ConsumeOrExpelWindowDown,
+            ),
+            ("focus-workspace-left", Action::FocusWorkspaceLeft),
+            ("focus-workspace-right", Action::FocusWorkspaceRight),
+            ("move-workspace-left", Action::MoveWorkspaceLeft),
+            ("move-workspace-right", Action::MoveWorkspaceRight),
+            (
+                "move-group-to-workspace-left",
+                Action::MoveGroupToWorkspaceLeft(true),
+            ),
+            (
+                "move-group-to-workspace-right",
+                Action::MoveGroupToWorkspaceRight(true),
+            ),
+            (
+                "move-window-to-workspace-left",
+                Action::MoveWindowToWorkspaceLeft(true),
+            ),
+            (
+                "move-window-to-workspace-right",
+                Action::MoveWindowToWorkspaceRight(true),
+            ),
+        ];
+        for (name, expected) in cases {
+            let config = do_parse(&format!("binds {{ Mod+T {{ {name}; }}\n}}"));
+            assert_eq!(config.binds.0[0].action, expected, "`{name}`");
+        }
+        let config = do_parse("binds { Mod+T { move-group-to-workspace-left focus=false; }\n}");
+        assert_eq!(
+            config.binds.0[0].action,
+            Action::MoveGroupToWorkspaceLeft(false)
+        );
+    }
+
+    #[test]
+    fn composite_spatial_actions_parse() {
+        let cases = [
+            ("focus-group-or-monitor-up", Action::FocusGroupOrMonitorUp),
+            (
+                "focus-group-or-monitor-down",
+                Action::FocusGroupOrMonitorDown,
+            ),
+            (
+                "focus-window-or-monitor-left",
+                Action::FocusWindowOrMonitorLeft,
+            ),
+            (
+                "focus-window-or-monitor-right",
+                Action::FocusWindowOrMonitorRight,
+            ),
+            (
+                "focus-window-or-workspace-left",
+                Action::FocusWindowOrWorkspaceLeft,
+            ),
+            (
+                "focus-window-or-workspace-right",
+                Action::FocusWindowOrWorkspaceRight,
+            ),
+            (
+                "move-group-up-or-to-monitor-up",
+                Action::MoveGroupUpOrToMonitorUp,
+            ),
+            (
+                "move-group-down-or-to-monitor-down",
+                Action::MoveGroupDownOrToMonitorDown,
+            ),
+            (
+                "focus-window-right-or-group-up",
+                Action::FocusWindowRightOrGroupUp,
+            ),
+            (
+                "focus-window-right-or-group-down",
+                Action::FocusWindowRightOrGroupDown,
+            ),
+            (
+                "focus-window-left-or-group-up",
+                Action::FocusWindowLeftOrGroupUp,
+            ),
+            (
+                "focus-window-left-or-group-down",
+                Action::FocusWindowLeftOrGroupDown,
+            ),
+            ("focus-group-down-or-first", Action::FocusGroupDownOrFirst),
+            ("focus-group-up-or-last", Action::FocusGroupUpOrLast),
+            (
+                "move-window-right-or-to-workspace-right",
+                Action::MoveWindowRightOrToWorkspaceRight,
+            ),
+            (
+                "move-window-left-or-to-workspace-left",
+                Action::MoveWindowLeftOrToWorkspaceLeft,
+            ),
+            ("focus-window-first", Action::FocusWindowFirst),
+            ("focus-window-last", Action::FocusWindowLast),
+            ("focus-window-leftmost", Action::FocusWindowLeftmost),
+            ("focus-window-rightmost", Action::FocusWindowRightmost),
+            (
+                "focus-window-right-or-leftmost",
+                Action::FocusWindowRightOrLeftmost,
+            ),
+            (
+                "focus-window-left-or-rightmost",
+                Action::FocusWindowLeftOrRightmost,
+            ),
+        ];
+        for (name, expected) in cases {
+            let config = do_parse(&format!("binds {{ Mod+T {{ {name}; }}\n}}"));
+            assert_eq!(config.binds.0[0].action, expected, "`{name}`");
+        }
+    }
+
+    #[test]
+    fn fused_composite_actions_parse() {
+        let cases = [
+            ("focus-window-or-group-left", Action::FocusWindowOrGroupLeft),
+            (
+                "focus-window-or-group-right",
+                Action::FocusWindowOrGroupRight,
+            ),
+            ("focus-window-or-group-up", Action::FocusWindowOrGroupUp),
+            ("focus-window-or-group-down", Action::FocusWindowOrGroupDown),
+            ("move-window-or-group-left", Action::MoveWindowOrGroupLeft),
+            ("move-window-or-group-right", Action::MoveWindowOrGroupRight),
+            ("move-window-or-group-up", Action::MoveWindowOrGroupUp),
+            ("move-window-or-group-down", Action::MoveWindowOrGroupDown),
+        ];
+        for (name, expected) in cases {
+            let config = do_parse(&format!("binds {{ Mod+T {{ {name}; }}\n}}"));
+            assert_eq!(config.binds.0[0].action, expected, "`{name}`");
+        }
+    }
+
+    #[test]
+    fn width_column_spellings_parse_like_group_actions() {
+        let pairs = [
+            ("switch-preset-column-width", "switch-preset-group-width"),
+            (
+                "switch-preset-column-width-back",
+                "switch-preset-group-width-back",
+            ),
+            (r#"set-column-width "50%""#, r#"set-group-width "50%""#),
+            (
+                "expand-column-to-available-width",
+                "expand-group-to-available-width",
+            ),
+        ];
+        for (column, group) in pairs {
+            let a = do_parse(&format!("binds {{ Mod+T {{ {column}; }}\n}}"));
+            let b = do_parse(&format!("binds {{ Mod+T {{ {group}; }}\n}}"));
+            assert_eq!(a.binds, b.binds, "`{column}` should parse like `{group}`");
+        }
+    }
+
+    #[test]
+    fn width_option_spellings() {
+        let legacy = do_parse(
+            r#"
+            layout {
+                preset-column-widths { proportion 0.25; }
+                default-column-width { proportion 0.25; }
+            }
+            "#,
+        );
+        let group = do_parse(
+            r#"
+            layout {
+                preset-group-widths { proportion 0.25; }
+                default-group-width { proportion 0.25; }
+            }
+            "#,
+        );
+        assert_eq!(
+            legacy.layout.preset_group_widths,
+            group.layout.preset_group_widths
+        );
+        assert_eq!(
+            legacy.layout.default_group_width,
+            group.layout.default_group_width
+        );
+
+        let both = do_parse(
+            r#"
+            layout {
+                preset-column-widths { proportion 0.25; }
+                preset-group-widths { proportion 0.5; }
+                default-column-width { proportion 0.25; }
+                default-group-width { proportion 0.5; }
+            }
+            "#,
+        );
+        assert_eq!(
+            both.layout.preset_group_widths,
+            vec![PresetSize::Proportion(0.5)],
+            "group spelling should win when both are set",
+        );
+        assert_eq!(
+            both.layout.default_group_width,
+            Some(PresetSize::Proportion(0.5)),
+            "group spelling should win when both are set",
+        );
+    }
+
+    #[test]
+    fn height_actions_parse() {
+        use niri_ipc::SizeChange;
+
+        let cases = [
+            (
+                "switch-preset-group-height",
+                Action::SwitchPresetGroupHeight,
+            ),
+            (
+                "switch-preset-group-height-back",
+                Action::SwitchPresetGroupHeightBack,
+            ),
+            (
+                r#"set-group-height "50%""#,
+                Action::SetGroupHeight(SizeChange::SetProportion(50.)),
+            ),
+            (
+                "expand-group-to-available-height",
+                Action::ExpandGroupToAvailableHeight,
+            ),
+        ];
+        for (name, expected) in cases {
+            let config = do_parse(&format!("binds {{ Mod+T {{ {name}; }}\n}}"));
+            assert_eq!(config.binds.0[0].action, expected, "`{name}`");
+        }
+    }
+
+    #[test]
+    fn height_option_spellings() {
+        let config = do_parse(
+            r#"
+            layout {
+                preset-group-heights { proportion 0.25; }
+                default-group-height { proportion 0.25; }
+            }
+            "#,
+        );
+        assert_eq!(
+            config.layout.preset_group_heights,
+            vec![PresetSize::Proportion(0.25)]
+        );
+        assert_eq!(
+            config.layout.default_group_height,
+            Some(PresetSize::Proportion(0.25))
         );
     }
 }

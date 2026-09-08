@@ -5,7 +5,7 @@ use std::fmt::Write as _;
 use std::iter::zip;
 use std::rc::Rc;
 
-use niri_config::{Action, Bind, Config, Key, ModKey, Modifiers, Trigger};
+use niri_config::{Action, Bind, Config, Key, ModKey, Modifiers, Orientation, Trigger};
 use pangocairo::cairo::{self, ImageSurface};
 use pangocairo::pango::{AttrColor, AttrInt, AttrList, AttrString, FontDescription, Weight};
 use smithay::backend::renderer::element::Kind;
@@ -36,6 +36,7 @@ pub struct HotkeyOverlay {
 
 pub struct RenderedOverlay {
     buffer: Option<TextureBuffer<GlesTexture>>,
+    orientation: Orientation,
 }
 
 impl HotkeyOverlay {
@@ -75,10 +76,17 @@ impl HotkeyOverlay {
         self.buffers.borrow_mut().clear();
     }
 
+    /// Renders the overlay for `output`.
+    ///
+    /// `orientation` selects which spelling the curated list of important hotkeys uses for its
+    /// directional entries (see [`collect_actions`]); pass the orientation of `output` itself,
+    /// matching [`crate::layout::monitor::Monitor::orientation`] (the same source
+    /// `overview_axis()` uses), since the overlay is rendered once per output.
     pub fn render<R: NiriRenderer>(
         &self,
         renderer: &mut R,
         output: &Output,
+        orientation: Orientation,
     ) -> Option<PrimaryGpuTextureRenderElement> {
         if !self.is_open {
             return None;
@@ -94,7 +102,9 @@ impl HotkeyOverlay {
         let weak = output.downgrade();
         if let Some(rendered) = buffers.get(&weak) {
             if let Some(buffer) = &rendered.buffer {
-                if buffer.texture_scale() != Scale::from(scale) {
+                if buffer.texture_scale() != Scale::from(scale)
+                    || rendered.orientation != orientation
+                {
                     buffers.remove(&weak);
                 }
             }
@@ -102,8 +112,17 @@ impl HotkeyOverlay {
 
         let rendered = buffers.entry(weak).or_insert_with(|| {
             let renderer = renderer.as_gles_renderer();
-            render(renderer, &self.config.borrow(), self.mod_key, scale)
-                .unwrap_or_else(|_| RenderedOverlay { buffer: None })
+            render(
+                renderer,
+                &self.config.borrow(),
+                self.mod_key,
+                scale,
+                orientation,
+            )
+            .unwrap_or_else(|_| RenderedOverlay {
+                buffer: None,
+                orientation,
+            })
         });
         let buffer = rendered.buffer.as_ref()?;
 
@@ -125,9 +144,10 @@ impl HotkeyOverlay {
         Some(PrimaryGpuTextureRenderElement(elem))
     }
 
-    pub fn a11y_text(&self) -> String {
+    /// `orientation` picks the curated list's directional spellings; see [`Self::render`].
+    pub fn a11y_text(&self, orientation: Orientation) -> String {
         let config = self.config.borrow();
-        let actions = collect_actions(&config);
+        let actions = collect_actions(&config, orientation);
 
         let mut buf = String::new();
         writeln!(&mut buf, "{TITLE}").unwrap();
@@ -194,8 +214,28 @@ fn format_bind(binds: &[Bind], action: &Action) -> Option<(Option<Key>, String)>
     Some((key, title))
 }
 
-fn collect_actions(config: &Config) -> Vec<&Action> {
+/// Builds the curated list of important hotkeys shown by the overlay.
+///
+/// The directional entries below follow `orientation`, per the spatial-twin table established
+/// for the rest of the layout: the twin preserves the resolved `AxisDirection`
+/// (`crate::layout::axis::AxisDirection`), not the word. For the group family (main axis; see
+/// `AxisMap::main_direction`), left/up are both `Backward` and right/down are both `Forward`, so
+/// group left <-> up and right <-> down. `ConsumeOrExpelWindow{Left,Right,Up,Down}` follows the
+/// group twin too, since it moves a window along the strip like a group move. For the workspace
+/// family (cross axis; see `AxisMap::cross_direction`), down/right are both `Forward` and
+/// up/left are both `Backward`, so workspace down <-> right and up <-> left. On
+/// [`Orientation::Horizontal`] this reproduces the original, orientation-blind list.
+///
+/// The dimension family also follows `orientation`: `SwitchPresetGroupWidth` (horizontal) and
+/// `SwitchPresetGroupHeight` (vertical) both name the group's strip-span dimension, so the
+/// curated slot shows whichever one is live for the current orientation.
+///
+/// `orientation` is the single source for all of these, rather than each family's own dispatch
+/// source (workspace axis for group/window actions, monitor axis for workspace stacking): see
+/// [`HotkeyOverlay::render`].
+fn collect_actions(config: &Config, orientation: Orientation) -> Vec<&Action> {
     let binds = &config.binds.0;
+    let vertical = matches!(orientation, Orientation::Vertical);
 
     // Collect actions that we want to show.
     let mut actions = vec![&Action::ShowHotkeyOverlay];
@@ -210,51 +250,123 @@ fn collect_actions(config: &Config) -> Vec<&Action> {
         actions.push(&Action::Quit(false));
     }
 
-    actions.extend(&[
-        &Action::CloseWindow,
-        &Action::FocusColumnLeft,
-        &Action::FocusColumnRight,
-        &Action::MoveColumnLeft,
-        &Action::MoveColumnRight,
-        &Action::FocusWorkspaceDown,
-        &Action::FocusWorkspaceUp,
-    ]);
+    actions.push(&Action::CloseWindow);
 
-    // Prefer move-column-to-workspace-down, but fall back to move-window-to-workspace-down.
-    if let Some(bind) = binds
-        .iter()
-        .find(|bind| matches!(bind.action, Action::MoveColumnToWorkspaceDown(_)))
-    {
-        actions.push(&bind.action);
-    } else if binds
-        .iter()
-        .any(|bind| matches!(bind.action, Action::MoveWindowToWorkspaceDown(_)))
-    {
-        actions.push(&Action::MoveWindowToWorkspaceDown(true));
+    // A group slot shows the plain action when it's bound; otherwise it falls back to the
+    // fused window-or-group bind covering the same direction, so configs that only bind the
+    // fused actions don't render "(not bound)" rows.
+    let bound = |action: &Action| binds.iter().any(|bind| bind.action == *action);
+    let plain_or_fused = |plain: &'static Action, fused: &'static Action| {
+        if !bound(plain) && bound(fused) {
+            fused
+        } else {
+            plain
+        }
+    };
+
+    if vertical {
+        actions.extend([
+            plain_or_fused(&Action::FocusGroupUp, &Action::FocusWindowOrGroupUp),
+            plain_or_fused(&Action::FocusGroupDown, &Action::FocusWindowOrGroupDown),
+            plain_or_fused(&Action::MoveGroupUp, &Action::MoveWindowOrGroupUp),
+            plain_or_fused(&Action::MoveGroupDown, &Action::MoveWindowOrGroupDown),
+            &Action::FocusWorkspaceRight,
+            &Action::FocusWorkspaceLeft,
+        ]);
     } else {
-        actions.push(&Action::MoveColumnToWorkspaceDown(true));
+        actions.extend([
+            plain_or_fused(&Action::FocusGroupLeft, &Action::FocusWindowOrGroupLeft),
+            plain_or_fused(&Action::FocusGroupRight, &Action::FocusWindowOrGroupRight),
+            plain_or_fused(&Action::MoveGroupLeft, &Action::MoveWindowOrGroupLeft),
+            plain_or_fused(&Action::MoveGroupRight, &Action::MoveWindowOrGroupRight),
+            &Action::FocusWorkspaceDown,
+            &Action::FocusWorkspaceUp,
+        ]);
     }
 
-    // Same for -up.
-    if let Some(bind) = binds
-        .iter()
-        .find(|bind| matches!(bind.action, Action::MoveColumnToWorkspaceUp(_)))
-    {
-        actions.push(&bind.action);
-    } else if binds
-        .iter()
-        .any(|bind| matches!(bind.action, Action::MoveWindowToWorkspaceUp(_)))
-    {
-        actions.push(&Action::MoveWindowToWorkspaceUp(true));
+    if vertical {
+        // The twin of -down (Forward) is -right, not -left; see the doc comment above.
+        // Prefer move-group-to-workspace-right, but fall back to move-window-to-workspace-right.
+        if let Some(bind) = binds
+            .iter()
+            .find(|bind| matches!(bind.action, Action::MoveGroupToWorkspaceRight(_)))
+        {
+            actions.push(&bind.action);
+        } else if binds
+            .iter()
+            .any(|bind| matches!(bind.action, Action::MoveWindowToWorkspaceRight(_)))
+        {
+            actions.push(&Action::MoveWindowToWorkspaceRight(true));
+        } else {
+            actions.push(&Action::MoveGroupToWorkspaceRight(true));
+        }
+
+        // Same for -left (the twin of -up).
+        if let Some(bind) = binds
+            .iter()
+            .find(|bind| matches!(bind.action, Action::MoveGroupToWorkspaceLeft(_)))
+        {
+            actions.push(&bind.action);
+        } else if binds
+            .iter()
+            .any(|bind| matches!(bind.action, Action::MoveWindowToWorkspaceLeft(_)))
+        {
+            actions.push(&Action::MoveWindowToWorkspaceLeft(true));
+        } else {
+            actions.push(&Action::MoveGroupToWorkspaceLeft(true));
+        }
     } else {
-        actions.push(&Action::MoveColumnToWorkspaceUp(true));
+        // Prefer move-column-to-workspace-down, but fall back to move-window-to-workspace-down.
+        if let Some(bind) = binds
+            .iter()
+            .find(|bind| matches!(bind.action, Action::MoveGroupToWorkspaceDown(_)))
+        {
+            actions.push(&bind.action);
+        } else if binds
+            .iter()
+            .any(|bind| matches!(bind.action, Action::MoveWindowToWorkspaceDown(_)))
+        {
+            actions.push(&Action::MoveWindowToWorkspaceDown(true));
+        } else {
+            actions.push(&Action::MoveGroupToWorkspaceDown(true));
+        }
+
+        // Same for -up.
+        if let Some(bind) = binds
+            .iter()
+            .find(|bind| matches!(bind.action, Action::MoveGroupToWorkspaceUp(_)))
+        {
+            actions.push(&bind.action);
+        } else if binds
+            .iter()
+            .any(|bind| matches!(bind.action, Action::MoveWindowToWorkspaceUp(_)))
+        {
+            actions.push(&Action::MoveWindowToWorkspaceUp(true));
+        } else {
+            actions.push(&Action::MoveGroupToWorkspaceUp(true));
+        }
+    }
+
+    if vertical {
+        actions.push(&Action::SwitchPresetGroupHeight);
+    } else {
+        actions.push(&Action::SwitchPresetGroupWidth);
+    }
+    actions.push(&Action::MaximizeGroup);
+
+    if vertical {
+        actions.extend(&[
+            &Action::ConsumeOrExpelWindowUp,
+            &Action::ConsumeOrExpelWindowDown,
+        ]);
+    } else {
+        actions.extend(&[
+            &Action::ConsumeOrExpelWindowLeft,
+            &Action::ConsumeOrExpelWindowRight,
+        ]);
     }
 
     actions.extend(&[
-        &Action::SwitchPresetColumnWidth,
-        &Action::MaximizeColumn,
-        &Action::ConsumeOrExpelWindowLeft,
-        &Action::ConsumeOrExpelWindowRight,
         &Action::ToggleWindowFloating,
         &Action::SwitchFocusBetweenFloatingAndTiling,
         &Action::ToggleOverview,
@@ -308,6 +420,7 @@ fn render(
     config: &Config,
     mod_key: ModKey,
     scale: f64,
+    orientation: Orientation,
 ) -> anyhow::Result<RenderedOverlay> {
     let _span = tracy_client::span!("hotkey_overlay::render");
 
@@ -321,7 +434,7 @@ fn render(
     // target_size.h -= margin * 2;
     // anyhow::ensure!(target_size.w > 0 && target_size.h > 0);
 
-    let strings = collect_actions(config)
+    let strings = collect_actions(config, orientation)
         .into_iter()
         .filter_map(|action| format_bind(&config.binds.0, action))
         .map(|(key, action)| {
@@ -452,6 +565,7 @@ fn render(
 
     Ok(RenderedOverlay {
         buffer: Some(buffer),
+        orientation,
     })
 }
 
@@ -460,20 +574,41 @@ fn action_name(action: &Action) -> String {
         Action::Quit(_) => String::from("Exit niri"),
         Action::ShowHotkeyOverlay => String::from("Show Important Hotkeys"),
         Action::CloseWindow => String::from("Close Focused Window"),
-        Action::FocusColumnLeft => String::from("Focus Column to the Left"),
-        Action::FocusColumnRight => String::from("Focus Column to the Right"),
-        Action::MoveColumnLeft => String::from("Move Column Left"),
-        Action::MoveColumnRight => String::from("Move Column Right"),
+        Action::FocusGroupLeft => String::from("Focus Group to the Left"),
+        Action::FocusGroupRight => String::from("Focus Group to the Right"),
+        Action::FocusGroupUp => String::from("Focus Group Up"),
+        Action::FocusGroupDown => String::from("Focus Group Down"),
+        Action::MoveGroupLeft => String::from("Move Group Left"),
+        Action::MoveGroupRight => String::from("Move Group Right"),
+        Action::MoveGroupUp => String::from("Move Group Up"),
+        Action::MoveGroupDown => String::from("Move Group Down"),
+        Action::FocusWindowOrGroupLeft => String::from("Focus Window or Group to the Left"),
+        Action::FocusWindowOrGroupRight => String::from("Focus Window or Group to the Right"),
+        Action::FocusWindowOrGroupUp => String::from("Focus Window or Group Up"),
+        Action::FocusWindowOrGroupDown => String::from("Focus Window or Group Down"),
+        Action::MoveWindowOrGroupLeft => String::from("Move Window or Group Left"),
+        Action::MoveWindowOrGroupRight => String::from("Move Window or Group Right"),
+        Action::MoveWindowOrGroupUp => String::from("Move Window or Group Up"),
+        Action::MoveWindowOrGroupDown => String::from("Move Window or Group Down"),
         Action::FocusWorkspaceDown => String::from("Switch Workspace Down"),
         Action::FocusWorkspaceUp => String::from("Switch Workspace Up"),
-        Action::MoveColumnToWorkspaceDown(_) => String::from("Move Column to Workspace Down"),
-        Action::MoveColumnToWorkspaceUp(_) => String::from("Move Column to Workspace Up"),
+        Action::FocusWorkspaceLeft => String::from("Switch Workspace Left"),
+        Action::FocusWorkspaceRight => String::from("Switch Workspace Right"),
+        Action::MoveGroupToWorkspaceDown(_) => String::from("Move Group to Workspace Down"),
+        Action::MoveGroupToWorkspaceUp(_) => String::from("Move Group to Workspace Up"),
+        Action::MoveGroupToWorkspaceLeft(_) => String::from("Move Group to Workspace Left"),
+        Action::MoveGroupToWorkspaceRight(_) => String::from("Move Group to Workspace Right"),
         Action::MoveWindowToWorkspaceDown(_) => String::from("Move Window to Workspace Down"),
         Action::MoveWindowToWorkspaceUp(_) => String::from("Move Window to Workspace Up"),
-        Action::SwitchPresetColumnWidth => String::from("Switch Preset Column Widths"),
-        Action::MaximizeColumn => String::from("Maximize Column"),
+        Action::MoveWindowToWorkspaceLeft(_) => String::from("Move Window to Workspace Left"),
+        Action::MoveWindowToWorkspaceRight(_) => String::from("Move Window to Workspace Right"),
+        Action::SwitchPresetGroupWidth => String::from("Switch Preset Group Widths"),
+        Action::SwitchPresetGroupHeight => String::from("Switch Preset Group Heights"),
+        Action::MaximizeGroup => String::from("Maximize Group"),
         Action::ConsumeOrExpelWindowLeft => String::from("Consume or Expel Window Left"),
         Action::ConsumeOrExpelWindowRight => String::from("Consume or Expel Window Right"),
+        Action::ConsumeOrExpelWindowUp => String::from("Consume or Expel Window Up"),
+        Action::ConsumeOrExpelWindowDown => String::from("Consume or Expel Window Down"),
         Action::ToggleWindowFloating => String::from("Move Window Between Floating and Tiling"),
         Action::SwitchFocusBetweenFloatingAndTiling => {
             String::from("Switch Focus Between Floating and Tiling")
@@ -712,6 +847,154 @@ mod tests {
                 Action::Screenshot(true, None),
             ),
             @" Super + P : Hello"
+        );
+    }
+
+    #[test]
+    fn collect_actions_follows_orientation() {
+        let config = Config::parse_mem("").unwrap();
+
+        let horizontal = collect_actions(&config, Orientation::Horizontal);
+        let vertical = collect_actions(&config, Orientation::Vertical);
+
+        // Horizontal reproduces today's list, unaffected by this change.
+        assert_eq!(
+            horizontal,
+            vec![
+                &Action::ShowHotkeyOverlay,
+                &Action::Quit(false),
+                &Action::CloseWindow,
+                &Action::FocusGroupLeft,
+                &Action::FocusGroupRight,
+                &Action::MoveGroupLeft,
+                &Action::MoveGroupRight,
+                &Action::FocusWorkspaceDown,
+                &Action::FocusWorkspaceUp,
+                &Action::MoveGroupToWorkspaceDown(true),
+                &Action::MoveGroupToWorkspaceUp(true),
+                &Action::SwitchPresetGroupWidth,
+                &Action::MaximizeGroup,
+                &Action::ConsumeOrExpelWindowLeft,
+                &Action::ConsumeOrExpelWindowRight,
+                &Action::ToggleWindowFloating,
+                &Action::SwitchFocusBetweenFloatingAndTiling,
+                &Action::ToggleOverview,
+            ]
+        );
+
+        // Vertical replaces every directional entry with its spatial twin, preserving the
+        // resolved AxisDirection rather than the word: group left/right -> up/down (both stay
+        // Backward/Forward respectively), and workspace down/up -> right/left (down and right
+        // are both Forward, up and left are both Backward). The rest is untouched.
+        assert_eq!(
+            vertical,
+            vec![
+                &Action::ShowHotkeyOverlay,
+                &Action::Quit(false),
+                &Action::CloseWindow,
+                &Action::FocusGroupUp,
+                &Action::FocusGroupDown,
+                &Action::MoveGroupUp,
+                &Action::MoveGroupDown,
+                &Action::FocusWorkspaceRight,
+                &Action::FocusWorkspaceLeft,
+                &Action::MoveGroupToWorkspaceRight(true),
+                &Action::MoveGroupToWorkspaceLeft(true),
+                &Action::SwitchPresetGroupHeight,
+                &Action::MaximizeGroup,
+                &Action::ConsumeOrExpelWindowUp,
+                &Action::ConsumeOrExpelWindowDown,
+                &Action::ToggleWindowFloating,
+                &Action::SwitchFocusBetweenFloatingAndTiling,
+                &Action::ToggleOverview,
+            ]
+        );
+
+        // None of the horizontal directional entries leak into the vertical list.
+        for dead in [
+            &Action::FocusGroupLeft,
+            &Action::FocusGroupRight,
+            &Action::MoveGroupLeft,
+            &Action::MoveGroupRight,
+            &Action::FocusWorkspaceDown,
+            &Action::FocusWorkspaceUp,
+            &Action::MoveGroupToWorkspaceDown(true),
+            &Action::MoveGroupToWorkspaceUp(true),
+            &Action::ConsumeOrExpelWindowLeft,
+            &Action::ConsumeOrExpelWindowRight,
+            &Action::SwitchPresetGroupWidth,
+        ] {
+            assert!(
+                !vertical.contains(&dead),
+                "{dead:?} should not appear in the vertical list"
+            );
+        }
+    }
+
+    #[test]
+    fn collect_actions_prefers_fused_binds_when_plain_unbound() {
+        // Only the fused actions are bound: the group slots must show them instead of
+        // rendering "(not bound)" rows for the plain spellings.
+        let fused_only = Config::parse_mem(
+            r#"binds {
+                Mod+Left { focus-window-or-group-left; }
+                Mod+Right { focus-window-or-group-right; }
+                Mod+Up { focus-window-or-group-up; }
+                Mod+Down { focus-window-or-group-down; }
+                Mod+Shift+Left { move-window-or-group-left; }
+                Mod+Shift+Right { move-window-or-group-right; }
+                Mod+Shift+Up { move-window-or-group-up; }
+                Mod+Shift+Down { move-window-or-group-down; }
+            }"#,
+        )
+        .unwrap();
+
+        let horizontal = collect_actions(&fused_only, Orientation::Horizontal);
+        assert_eq!(
+            &horizontal[3..7],
+            &[
+                &Action::FocusWindowOrGroupLeft,
+                &Action::FocusWindowOrGroupRight,
+                &Action::MoveWindowOrGroupLeft,
+                &Action::MoveWindowOrGroupRight,
+            ]
+        );
+
+        let vertical = collect_actions(&fused_only, Orientation::Vertical);
+        assert_eq!(
+            &vertical[3..7],
+            &[
+                &Action::FocusWindowOrGroupUp,
+                &Action::FocusWindowOrGroupDown,
+                &Action::MoveWindowOrGroupUp,
+                &Action::MoveWindowOrGroupDown,
+            ]
+        );
+
+        // With the plain group actions bound too, they keep their slots.
+        let both = Config::parse_mem(
+            r#"binds {
+                Mod+H { focus-column-left; }
+                Mod+L { focus-column-right; }
+                Mod+Ctrl+H { move-column-left; }
+                Mod+Ctrl+L { move-column-right; }
+                Mod+Left { focus-window-or-group-left; }
+                Mod+Right { focus-window-or-group-right; }
+                Mod+Shift+Left { move-window-or-group-left; }
+                Mod+Shift+Right { move-window-or-group-right; }
+            }"#,
+        )
+        .unwrap();
+
+        let horizontal = collect_actions(&both, Orientation::Horizontal);
+        assert_eq!(
+            &horizontal[3..7],
+            &[
+                &Action::FocusGroupLeft,
+                &Action::FocusGroupRight,
+                &Action::MoveGroupLeft,
+                &Action::MoveGroupRight,
+            ]
         );
     }
 }

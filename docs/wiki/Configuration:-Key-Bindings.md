@@ -95,6 +95,8 @@ binds {
 }
 ```
 
+These examples assume the default horizontal main axis. The action names stay the same with `layout.orientation "vertical"`, but their physical direction follows the main/cross-axis interpretation of the layout.
+
 Similarly, you can bind touchpad scroll "ticks".
 Touchpad scrolling is continuous, so for these binds it is split into discrete intervals based on distance travelled.
 
@@ -173,6 +175,30 @@ binds {
 
 Every action that you can bind is also available for programmatic invocation via `niri msg action`.
 Run `niri msg action` to get a full list of actions along with their short descriptions.
+
+<sup>Since: next release</sup> A *group* is a set of windows sharing a single span along the scrolling strip — the thing a horizontal layout displays as a column.
+Group is the canonical vocabulary: every action that operates on one has a `group` name, including the width actions (`set-group-width` and friends), and the historical `column` spellings remain supported everywhere (config, `niri msg action`, and the JSON IPC) as equivalent legacy names.
+
+```kdl
+binds {
+    Mod+Left  { focus-group-left; }  // same as focus-column-left
+    Mod+Right { focus-group-right; } // same as focus-column-right
+}
+```
+
+<sup>Since: next release</sup> Directional actions name a physical direction and act on what lies that way.
+On a vertical-orientation output, the horizontal group spellings (`focus-group-left`, `focus-group-right`, …) do nothing, and the vertical group spellings (`focus-group-up`, `focus-group-down`, …) apply instead.
+Workspaces run the other way: the vertical workspace spellings (`focus-workspace-up`, `focus-workspace-down`, …) do nothing, and the horizontal workspace spellings (`focus-workspace-left`, `focus-workspace-right`, …) apply instead.
+Windows within a group follow the cross axis, so on a vertical-orientation output `focus-window-up` and `focus-window-down` do nothing, and `focus-window-left` and `focus-window-right` apply instead.
+`focus-window-first` and `focus-window-last`, like `focus-group-first` and `focus-group-last`, are orientation-neutral and work the same on every output.
+
+<sup>Since: next release</sup> The fused actions `focus-window-or-group-left/right/up/down` and `move-window-or-group-left/right/up/down` act on whatever lies in the named physical direction: the window within the group or the adjacent group.
+Since windows and groups run along perpendicular axes, exactly one of the two applies on any output, which makes these actions a good fit for arrow keys in a mixed horizontal/vertical monitor setup.
+When the applicable side has nowhere left to go, the action does nothing.
+
+<sup>Since: next release</sup> The width actions (`set-group-width`, `switch-preset-group-width`, `expand-group-to-available-width`, …) act on horizontal-orientation strips only, and do nothing on a vertical one.
+The height actions (`set-group-height`, `switch-preset-group-height`, `expand-group-to-available-height`, …) act on vertical-orientation strips only, and do nothing on a horizontal one.
+The `column` spellings (`set-column-width`, `switch-preset-column-width`, …) remain legacy names for the width family only; the height family has no `column` spelling.
 
 Here are a few actions that benefit from more explanation.
 

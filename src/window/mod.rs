@@ -1,5 +1,6 @@
 use std::cmp::{max, min};
 
+use niri_config::layout::DefaultPresetSize;
 use niri_config::utils::MergeWith as _;
 use niri_config::window_rule::{Match, OnXdgActivate, WindowRule};
 use niri_config::{
@@ -216,9 +217,11 @@ impl ResolvedWindowRules {
                     continue;
                 }
 
-                if let Some(x) = rule.default_column_width {
-                    resolved.default_width = Some(x.0);
-                }
+                resolved.default_width = resolve_default_width(
+                    resolved.default_width,
+                    rule.default_column_width,
+                    rule.default_group_width,
+                );
 
                 if let Some(x) = rule.default_window_height {
                     resolved.default_height = Some(x.0);
@@ -453,4 +456,70 @@ fn window_matches(window: WindowRef, role: &XdgToplevelSurfaceRoleAttributes, m:
     }
 
     true
+}
+
+/// Resolves `default_column_width`/`default_group_width` for one window rule, where the group
+/// spelling wins if both are set.
+fn resolve_default_width(
+    mut current: Option<Option<PresetSize>>,
+    column: Option<DefaultPresetSize>,
+    group: Option<DefaultPresetSize>,
+) -> Option<Option<PresetSize>> {
+    if let Some(x) = column {
+        current = Some(x.0);
+    }
+    if let Some(x) = group {
+        current = Some(x.0);
+    }
+    current
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolve_default_width_group_wins_when_both_set() {
+        let column = Some(DefaultPresetSize(Some(PresetSize::Proportion(0.25))));
+        let group = Some(DefaultPresetSize(Some(PresetSize::Proportion(0.5))));
+
+        assert_eq!(
+            resolve_default_width(None, column, group),
+            Some(Some(PresetSize::Proportion(0.5))),
+            "group spelling should win when both are set",
+        );
+    }
+
+    #[test]
+    fn resolve_default_width_column_only_resolves_to_column() {
+        let column = Some(DefaultPresetSize(Some(PresetSize::Proportion(0.25))));
+
+        assert_eq!(
+            resolve_default_width(None, column, None),
+            Some(Some(PresetSize::Proportion(0.25))),
+            "column spelling should resolve when only it is set",
+        );
+    }
+
+    #[test]
+    fn resolve_default_width_group_only_resolves_to_group() {
+        let group = Some(DefaultPresetSize(Some(PresetSize::Proportion(0.5))));
+
+        assert_eq!(
+            resolve_default_width(None, None, group),
+            Some(Some(PresetSize::Proportion(0.5))),
+            "group spelling should resolve when only it is set",
+        );
+    }
+
+    #[test]
+    fn resolve_default_width_neither_set_falls_through_to_current() {
+        let current = Some(Some(PresetSize::Proportion(0.75)));
+
+        assert_eq!(
+            resolve_default_width(current, None, None),
+            current,
+            "current should pass through unchanged when neither spelling is set",
+        );
+    }
 }
