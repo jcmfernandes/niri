@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use smithay::backend::input::InputTime;
 use smithay::input::pointer::{
     AxisFrame, ButtonEvent, CursorImageStatus, GestureHoldBeginEvent, GestureHoldEndEvent,
     GesturePinchBeginEvent, GesturePinchEndEvent, GesturePinchUpdateEvent, GestureSwipeBeginEvent,
@@ -13,7 +14,6 @@ use smithay::utils::{Logical, Point, SERIAL_COUNTER};
 use crate::input::axis_policy::InputAxisPolicy;
 use crate::layout::workspace::WorkspaceId;
 use crate::niri::State;
-use crate::utils::get_monotonic_time;
 
 pub struct SpatialMovementGrab {
     start_data: PointerGrabStartData<State>,
@@ -173,7 +173,7 @@ impl PointerGrab<State> for SpatialMovementGrab {
 
         // Relative motion takes precedence over normal motion.
         if self.relative_delta.is_none() {
-            self.event_timestamp = Some(Duration::from_millis(u64::from(event.time)));
+            self.event_timestamp = Some(Duration::from_micros(event.time.micros()));
         }
     }
 
@@ -188,7 +188,7 @@ impl PointerGrab<State> for SpatialMovementGrab {
         handle.relative_motion(data, None, event);
 
         *self.relative_delta.get_or_insert_default() += event.delta;
-        self.event_timestamp = Some(Duration::from_micros(event.utime));
+        self.event_timestamp = Some(Duration::from_micros(event.time.micros()));
     }
 
     fn button(
@@ -223,7 +223,7 @@ impl PointerGrab<State> for SpatialMovementGrab {
                 self,
                 data,
                 SERIAL_COUNTER.next_serial(),
-                get_monotonic_time().as_millis() as u32,
+                InputTime::now(),
                 true,
             );
         }

@@ -3,7 +3,7 @@ use std::thread;
 
 use accesskit::{
     ActionHandler, ActionRequest, ActivationHandler, DeactivationHandler, Live, Node, NodeId, Role,
-    Tree, TreeId, TreeUpdate,
+    TreeId, TreeInfo, TreeUpdate,
 };
 use accesskit_unix::Adapter;
 use calloop::LoopHandle;
@@ -331,7 +331,7 @@ impl Niri {
             ID_MRU,
         ]);
 
-        let tree = Tree {
+        let tree = TreeInfo {
             root: ID_ROOT,
             toolkit_name: Some(String::from("niri")),
             toolkit_version: None,

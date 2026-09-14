@@ -502,7 +502,7 @@ impl State {
         let mod_key = self.backend.mod_key(&self.niri.config.borrow());
 
         let serial = SERIAL_COUNTER.next_serial();
-        let time = Event::time_msec(&event);
+        let time = Event::time(&event);
         let pressed = event.state() == KeyState::Pressed;
 
         // Stop bind key repeat on any release. This won't work 100% correctly in cases like:
@@ -532,7 +532,7 @@ impl State {
         #[cfg(feature = "dbus")]
         let block = {
             let block = self.a11y_process_key(
-                Duration::from_millis(u64::from(time)),
+                Duration::from_micros(time.micros()),
                 event.key_code(),
                 event.state(),
             );
@@ -3146,7 +3146,7 @@ impl State {
                     &RelativeMotionEvent {
                         delta: event.delta(),
                         delta_unaccel: event.delta_unaccel(),
-                        utime: event.time(),
+                        time: event.time(),
                     },
                 );
 
@@ -3257,7 +3257,7 @@ impl State {
                     &RelativeMotionEvent {
                         delta: event.delta(),
                         delta_unaccel: event.delta_unaccel(),
-                        utime: event.time(),
+                        time: event.time(),
                     },
                 );
 
@@ -3277,7 +3277,7 @@ impl State {
             &MotionEvent {
                 location: new_pos,
                 serial,
-                time: event.time_msec(),
+                time: event.time(),
             },
         );
 
@@ -3287,7 +3287,7 @@ impl State {
             &RelativeMotionEvent {
                 delta: event.delta(),
                 delta_unaccel: event.delta_unaccel(),
-                utime: event.time(),
+                time: event.time(),
             },
         );
 
@@ -3378,7 +3378,7 @@ impl State {
             &MotionEvent {
                 location: pos,
                 serial,
-                time: event.time_msec(),
+                time: event.time(),
             },
         );
 
@@ -3748,7 +3748,7 @@ impl State {
                 button: button_code,
                 state: button_state,
                 serial,
-                time: event.time_msec(),
+                time: event.time(),
             },
         );
         pointer.frame(self);
@@ -3767,7 +3767,7 @@ impl State {
         self.niri.pointer_visibility = PointerVisibility::Visible;
         self.niri.tablet_cursor_location = None;
 
-        let timestamp = Duration::from_micros(event.time());
+        let timestamp = Duration::from_micros(event.time().micros());
 
         let horizontal_amount_v120 = event.amount_v120(Axis::Horizontal);
         let vertical_amount_v120 = event.amount_v120(Axis::Vertical);
@@ -4214,7 +4214,7 @@ impl State {
         let horizontal_amount_v120 = horizontal_amount_v120.map(|x| x * horizontal_factor);
         let vertical_amount_v120 = vertical_amount_v120.map(|x| x * vertical_factor);
 
-        let mut frame = AxisFrame::new(event.time_msec()).source(source);
+        let mut frame = AxisFrame::new(event.time()).source(source);
         if horizontal_amount != 0.0 {
             frame = frame
                 .relative_direction(Axis::Horizontal, event.relative_direction(Axis::Horizontal));
@@ -4249,7 +4249,17 @@ impl State {
     where
         I::Device: 'static, // Needed for downcasting.
     {
-        let Some(pos) = self.compute_tablet_position(&event) else {
+        self.update_tablet_tool::<I>(&event, true);
+    }
+
+    fn update_tablet_tool<I: InputBackend>(
+        &mut self,
+        event: &(impl Event<I> + TabletToolEvent<I>),
+        send_frame: bool,
+    ) where
+        I::Device: 'static,
+    {
+        let Some(pos) = self.compute_tablet_position(event) else {
             return;
         };
 
@@ -4275,7 +4285,7 @@ impl State {
         let tablet_seat = self.niri.seat.tablet_seat();
         let tool = tablet_seat.get_tool(&event.tool());
         if let Some(tool) = tool {
-            let time = event.time_msec();
+            let time = event.time();
 
             let frame = tablet::tool::AxisFrame {
                 pressure: event.pressure_has_changed().then(|| event.pressure()),
@@ -4287,7 +4297,6 @@ impl State {
                     .wheel_has_changed()
                     .then(|| (event.wheel_delta(), event.wheel_delta_discrete())),
             };
-            tool.axis(self, frame);
 
             tool.motion(
                 self,
@@ -4299,7 +4308,12 @@ impl State {
                 },
             );
 
-            tool.frame(self, time);
+            // Set axis after motion to ensure it reaches the new focus surface.
+            tool.axis(self, frame);
+
+            if send_frame {
+                tool.frame(self, time);
+            }
 
             self.niri.pointer_visibility = PointerVisibility::Visible;
             self.niri.tablet_cursor_location = Some(pos);
@@ -4310,16 +4324,24 @@ impl State {
         self.niri.queue_redraw_all();
     }
 
-    fn on_tablet_tool_tip<I: InputBackend>(&mut self, event: I::TabletToolTipEvent) {
+    fn on_tablet_tool_tip<I: InputBackend>(&mut self, event: I::TabletToolTipEvent)
+    where
+        I::Device: 'static,
+    {
         let tool = self.niri.seat.tablet_seat().get_tool(&event.tool());
 
         let Some(tool) = tool else {
             return;
         };
+
         let tip_state = event.tip_state();
+        if tip_state == TabletToolTipState::Down {
+            // Tip events can come together with axis event data with no separate axis event.
+            self.update_tablet_tool::<I>(&event, false);
+        }
 
         let serial = SERIAL_COUNTER.next_serial();
-        let time = event.time_msec();
+        let time = event.time();
 
         match tip_state {
             TabletToolTipState::Down => {
@@ -4392,7 +4414,7 @@ impl State {
                                 location: pos,
                             };
                             let start_data = AnyStartData::TabletTool(start_data);
-                            let start_timestamp = Duration::from_micros(event.time());
+                            let start_timestamp = Duration::from_micros(event.time().micros());
                             let grab = TouchOverviewGrab::new(
                                 start_data,
                                 start_timestamp,
@@ -4450,6 +4472,8 @@ impl State {
                 }
 
                 tool.up(self, &tablet::tool::UpEvent { serial, time });
+
+                self.update_tablet_tool::<I>(&event, false);
             }
         }
 
@@ -4474,7 +4498,7 @@ impl State {
         let tablet = tablet_seat.get_tablet(&TabletDescriptor::from(&event.device()));
         if let Some(tablet) = tablet {
             let serial = SERIAL_COUNTER.next_serial();
-            let time = event.time_msec();
+            let time = event.time();
 
             match event.state() {
                 ProximityState::In => {
@@ -4577,7 +4601,7 @@ impl State {
                 }
             }
 
-            let time = event.time_msec();
+            let time = event.time();
 
             tool.button(
                 self,
@@ -4623,7 +4647,7 @@ impl State {
             self,
             &GestureSwipeBeginEvent {
                 serial,
-                time: event.time_msec(),
+                time: event.time(),
                 fingers: event.fingers(),
             },
         );
@@ -4697,7 +4721,7 @@ impl State {
             }
         }
 
-        let timestamp = Duration::from_micros(event.time());
+        let timestamp = Duration::from_micros(event.time().micros());
         let (view_delta, workspace_delta) =
             axis_policy.split_view_workspace_deltas(delta_x, delta_y);
 
@@ -4749,7 +4773,7 @@ impl State {
         pointer.gesture_swipe_update(
             self,
             &GestureSwipeUpdateEvent {
-                time: event.time_msec(),
+                time: event.time(),
                 delta: event.delta(),
             },
         );
@@ -4793,7 +4817,7 @@ impl State {
             self,
             &GestureSwipeEndEvent {
                 serial,
-                time: event.time_msec(),
+                time: event.time(),
                 cancelled: event.cancelled(),
             },
         );
@@ -4811,7 +4835,7 @@ impl State {
             self,
             &GesturePinchBeginEvent {
                 serial,
-                time: event.time_msec(),
+                time: event.time(),
                 fingers: event.fingers(),
             },
         );
@@ -4827,7 +4851,7 @@ impl State {
         pointer.gesture_pinch_update(
             self,
             &GesturePinchUpdateEvent {
-                time: event.time_msec(),
+                time: event.time(),
                 delta: event.delta(),
                 scale: event.scale(),
                 rotation: event.rotation(),
@@ -4847,7 +4871,7 @@ impl State {
             self,
             &GesturePinchEndEvent {
                 serial,
-                time: event.time_msec(),
+                time: event.time(),
                 cancelled: event.cancelled(),
             },
         );
@@ -4865,7 +4889,7 @@ impl State {
             self,
             &GestureHoldBeginEvent {
                 serial,
-                time: event.time_msec(),
+                time: event.time(),
                 fingers: event.fingers(),
             },
         );
@@ -4883,7 +4907,7 @@ impl State {
             self,
             &GestureHoldEndEvent {
                 serial,
-                time: event.time_msec(),
+                time: event.time(),
                 cancelled: event.cancelled(),
             },
         );
@@ -4995,7 +5019,7 @@ impl State {
                     location: pos,
                 };
                 let start_data = AnyStartData::Touch(start_data);
-                let start_timestamp = Duration::from_micros(evt.time());
+                let start_timestamp = Duration::from_micros(evt.time().micros());
                 let grab = TouchOverviewGrab::new(
                     start_data,
                     start_timestamp,
@@ -5041,7 +5065,7 @@ impl State {
                 slot,
                 location: pos,
                 serial,
-                time: evt.time_msec(),
+                time: evt.time(),
             },
         );
 
@@ -5068,7 +5092,7 @@ impl State {
             &UpEvent {
                 slot,
                 serial,
-                time: evt.time_msec(),
+                time: evt.time(),
             },
         )
     }
@@ -5098,7 +5122,7 @@ impl State {
             &TouchMotionEvent {
                 slot,
                 location: pos,
-                time: evt.time_msec(),
+                time: evt.time(),
             },
         );
 
