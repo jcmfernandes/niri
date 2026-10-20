@@ -197,6 +197,7 @@ pub enum Action {
     /// Exit niri.
     Quit {
         /// Skip the "Press Enter to confirm" prompt.
+        #[serde(default)]
         #[cfg_attr(feature = "clap", arg(short, long))]
         skip_confirmation: bool,
     },
@@ -225,6 +226,7 @@ pub enum Action {
     /// Open the screenshot UI.
     Screenshot {
         ///  Whether to show the mouse pointer by default in the screenshot UI.
+        #[serde(default = "default_true")]
         #[cfg_attr(feature = "clap", arg(short = 'p', long, action = clap::ArgAction::Set, default_value_t = true))]
         show_pointer: bool,
 
@@ -241,10 +243,12 @@ pub enum Action {
         /// Write the screenshot to disk in addition to putting it in your clipboard.
         ///
         /// The screenshot is saved according to the `screenshot-path` config setting.
+        #[serde(default = "default_true")]
         #[cfg_attr(feature = "clap", arg(short = 'd', long, action = clap::ArgAction::Set, default_value_t = true))]
         write_to_disk: bool,
 
         /// Whether to include the mouse pointer in the screenshot.
+        #[serde(default = "default_true")]
         #[cfg_attr(feature = "clap", arg(short = 'p', long, action = clap::ArgAction::Set, default_value_t = true))]
         show_pointer: bool,
 
@@ -267,6 +271,7 @@ pub enum Action {
         /// Write the screenshot to disk in addition to putting it in your clipboard.
         ///
         /// The screenshot is saved according to the `screenshot-path` config setting.
+        #[serde(default = "default_true")]
         #[cfg_attr(feature = "clap", arg(short = 'd', long, action = clap::ArgAction::Set, default_value_t = true))]
         write_to_disk: bool,
 
@@ -274,6 +279,7 @@ pub enum Action {
         ///
         /// The pointer will be included only if the window is currently receiving pointer input
         /// (usually this means the pointer is on top of the window).
+        #[serde(default)]
         #[cfg_attr(feature = "clap", arg(short = 'p', long, action = clap::ArgAction::Set, default_value_t = false))]
         show_pointer: bool,
 
@@ -728,6 +734,7 @@ pub enum Action {
         ///
         /// If `true` (the default), the focus will follow the window to the new workspace. If
         /// `false`, the focus will remain on the original workspace.
+        #[serde(default = "default_true")]
         #[cfg_attr(feature = "clap", arg(long, action = clap::ArgAction::Set, default_value_t = true))]
         focus: bool,
     },
@@ -737,6 +744,7 @@ pub enum Action {
         ///
         /// If `true` (the default), the focus will follow the window to the new workspace. If
         /// `false`, the focus will remain on the original workspace.
+        #[serde(default = "default_true")]
         #[cfg_attr(feature = "clap", arg(long, action = clap::ArgAction::Set, default_value_t = true))]
         focus: bool,
     },
@@ -779,6 +787,7 @@ pub enum Action {
         /// If `true` (the default) and the window to move is focused, the focus will follow the
         /// window to the new workspace. If `false`, the focus will remain on the original
         /// workspace.
+        #[serde(default = "default_true")]
         #[cfg_attr(feature = "clap", arg(long, action = clap::ArgAction::Set, default_value_t = true))]
         focus: bool,
     },
@@ -790,6 +799,7 @@ pub enum Action {
         ///
         /// If `true` (the default), the focus will follow the column to the new workspace. If
         /// `false`, the focus will remain on the original workspace.
+        #[serde(default = "default_true")]
         #[cfg_attr(feature = "clap", arg(long, action = clap::ArgAction::Set, default_value_t = true))]
         focus: bool,
     },
@@ -810,6 +820,7 @@ pub enum Action {
         ///
         /// If `true` (the default), the focus will follow the column to the new workspace. If
         /// `false`, the focus will remain on the original workspace.
+        #[serde(default = "default_true")]
         #[cfg_attr(feature = "clap", arg(long, action = clap::ArgAction::Set, default_value_t = true))]
         focus: bool,
     },
@@ -852,6 +863,7 @@ pub enum Action {
         ///
         /// If `true` (the default), the focus will follow the column to the new workspace. If
         /// `false`, the focus will remain on the original workspace.
+        #[serde(default = "default_true")]
         #[cfg_attr(feature = "clap", arg(long, action = clap::ArgAction::Set, default_value_t = true))]
         focus: bool,
     },
@@ -1259,6 +1271,7 @@ pub enum Action {
         id: Option<u64>,
 
         /// How to change the X position.
+        #[serde(default = "default_position_change")]
         #[cfg_attr(
             feature = "clap",
             arg(short, long, default_value = "+0", allow_hyphen_values = true)
@@ -1266,6 +1279,7 @@ pub enum Action {
         x: PositionChange,
 
         /// How to change the Y position.
+        #[serde(default = "default_position_change")]
         #[cfg_attr(
             feature = "clap",
             arg(short, long, default_value = "+0", allow_hyphen_values = true)
@@ -1612,6 +1626,7 @@ pub struct VrrToSet {
     )]
     pub vrr: bool,
     /// Only enable when the output shows a window matching the variable-refresh-rate window rule.
+    #[serde(default)]
     #[cfg_attr(feature = "clap", arg(long))]
     pub on_demand: bool,
 }
@@ -2158,6 +2173,14 @@ pub enum Event {
         /// Stream ID of the stopped screencast.
         stream_id: u64,
     },
+    /// Touchpad toggled on/off via [`Action::ToggleTouchpad`].
+    TouchpadToggled {
+        /// Whether the touchpad is now enabled.
+        ///
+        /// Note that this only indicates the [`Action::ToggleTouchpad`] state. The touchpad can be
+        /// disabled in hardware, or via `input { touchpad { off; } }`—this is not reflected here.
+        on: bool,
+    },
 }
 
 impl From<Duration> for Timestamp {
@@ -2516,6 +2539,14 @@ impl OutputAction {
             _ => Ok(()),
         }
     }
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_position_change() -> PositionChange {
+    PositionChange::AdjustFixed(0.)
 }
 
 #[cfg(test)]
