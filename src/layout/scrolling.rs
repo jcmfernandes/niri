@@ -2840,26 +2840,42 @@ impl<W: LayoutElement> ScrollingSpace<W> {
     pub fn tiles_with_ipc_layouts(&self) -> impl Iterator<Item = (&Tile<W>, WindowLayout)> {
         let scale = self.dims.fractional_scale();
         let axis = self.axis();
-        let view_off = Point::from((-self.view_main_pos(), 0.));
+        let view = Rectangle::from_size(self.dims.view_size());
+        // Use the stationary view offset, consistent with how moving floating windows doesn't spam
+        // the IPC in progress.
+        let view_main_pos =
+            self.column_main_pos(self.active_column_idx) + self.view_offset.stationary();
+        let view_off = main_space_vec(-view_main_pos);
 
         let column_mains = self.column_main_positions(self.data.iter().copied());
         zip(self.columns.iter(), column_mains).enumerate().flat_map(
             move |(col_idx, (col, column_main))| {
+                // Do not include animated render offset here consistently with floating.
                 let column_offset = main_space_vec(column_main);
                 col.tiles()
                     .enumerate()
                     .map(move |(tile_idx, (tile, tile_off))| {
+                        // Do not include animated render offset here consistently with floating.
                         let pos = view_off + column_offset + tile_off;
                         let pos = axis.point_out(pos);
                         // Round to physical pixels.
                         let pos = pos.to_physical_precise_round(scale).to_logical(scale);
 
-                        let layout = WindowLayout {
-                            tile_pos_in_workspace_view: Some(pos.into()),
+                        let mut layout = WindowLayout {
                             // Our indices are 1-based, consistent with the actions.
                             pos_in_scrolling_layout: Some((col_idx + 1, tile_idx + 1)),
+                            tile_pos_in_workspace_view: Some(pos.into()),
                             ..tile.ipc_layout_template()
                         };
+
+                        // Clear out tile_pos_in_workspace_view for tiles outside of the workspace
+                        // view to avoid IPC spam. E.g. so that any scrolling on a workspace with
+                        // 100 columns didn't have to send 100 window layout changes.
+                        let bbox = Rectangle::new(pos, Size::from(layout.tile_size));
+                        if bbox.intersection(view).is_none() {
+                            layout.tile_pos_in_workspace_view = None;
+                        }
+
                         (tile, layout)
                     })
             },

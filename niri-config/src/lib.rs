@@ -229,7 +229,8 @@ where
                     let mut config = config.borrow_mut();
                     let binds = &mut config.binds.0;
                     // Remove existing binds matching any new bind.
-                    binds.retain(|bind| !part.0.iter().any(|new| new.key == bind.key));
+                    binds
+                        .retain(|bind| !part.0.iter().any(|new| new.key.conflicts_with(&bind.key)));
                     // Add all new binds.
                     binds.extend(part.0);
                 }
@@ -348,8 +349,12 @@ where
                     let decoded_path = knuffel::traits::DecodeScalar::decode(path_val, ctx)?;
 
                     // Expand ~ into the home dir
-                    let Some(path) = expand_home_path(decoded_path, node, ctx) else {
-                        continue;
+                    let path = match expand_home_path(decoded_path, node, ctx) {
+                        Ok(p) => p,
+                        Err(e) => {
+                            ctx.emit_error(e);
+                            continue;
+                        }
                     };
 
                     let recursion = ctx.get::<Recursion>().unwrap().0 + 1;
@@ -625,6 +630,7 @@ impl ConfigPath {
 mod tests {
     use insta::{assert_debug_snapshot, assert_snapshot};
     use pretty_assertions::assert_eq;
+    use smithay::input::keyboard::Keysym;
 
     use super::*;
 
@@ -645,6 +651,474 @@ mod tests {
         Config::parse_mem(text)
             .map_err(miette::Report::new)
             .unwrap()
+    }
+
+    #[test]
+    fn parse_release_binds_for_supported_triggers() {
+        // Keys and mouse buttons have release events, so release sections are supported.
+        do_parse(
+            r#"
+            binds {
+                Mod+MouseLeft {
+                    release { close-window; }
+                }
+                Mod+Q {
+                    press { close-window; }
+                    release { close-window; }
+                }
+            }
+            "#,
+        );
+    }
+
+    #[test]
+    fn parse_release_binds_for_unsupported_triggers() {
+        // Scroll ticks are dispatched as press events only, so scroll binds can't have a release
+        // action.
+        assert_parse_error(
+            r#"
+            binds {
+                Mod+WheelScrollDown {
+                    release { toggle-overview; }
+                }
+            }
+            "#,
+            "release sections are not supported for scroll binds",
+        );
+        assert_parse_error(
+            r#"
+            binds {
+                Mod+TouchpadScrollDown {
+                    release { toggle-overview; }
+                }
+            }
+            "#,
+            "release sections are not supported for scroll binds",
+        );
+    }
+
+    #[test]
+    fn parse_bind_repeat_on_release_only() {
+        // A release-only bind has no press action to repeat, so repeat=true is rejected.
+        assert_parse_error(
+            r#"
+            binds {
+                Mod+Q repeat=true {
+                    release { close-window; }
+                }
+            }
+            "#,
+            "release-only binds cannot repeat",
+        );
+
+        do_parse(
+            r#"
+            binds {
+                Mod+T repeat=true { spawn "alacritty"; }
+                Mod+Q repeat=true {
+                    press { close-window; }
+                    release { close-window; }
+                }
+                Mod+W {
+                    release { close-window; }
+                }
+                Mod+E repeat=false {
+                    release { close-window; }
+                }
+            }
+            "#,
+        );
+    }
+
+    #[test]
+    fn parse_bind_pass_through() {
+        let config = do_parse(
+            r#"
+            binds {
+                Mod+A pass-through=true { close-window; }
+                Mod+B pass-through=false { close-window; }
+                Mod+C { close-window; } // Should be off by default
+            }
+            "#,
+        );
+
+        assert_eq!(config.binds.0[0].pass_through, Some(true));
+        assert_eq!(config.binds.0[1].pass_through, Some(false));
+        assert_eq!(config.binds.0[2].pass_through, None);
+    }
+
+    #[test]
+    fn parse_bind_pass_through_on_pointer_binds() {
+        assert_parse_error(
+            r#"
+            binds {
+                Mod+MouseLeft pass-through=true { close-window; }
+            }
+            "#,
+            "pass-through is only supported for keyboard binds",
+        );
+    }
+
+    /// Asserts that parsing fails with a diagnostic containing `message`.
+    #[track_caller]
+    fn assert_parse_error(text: &str, message: &str) {
+        let err = match Config::parse_mem(text) {
+            Ok(_) => panic!("expected a parse error for:\n{text}"),
+            Err(err) => err,
+        };
+
+        // knuffel keeps the individual diagnostics in a private field, so check the Debug
+        // representation, which includes their messages.
+        let err = format!("{err:?}");
+        assert!(
+            err.contains(message),
+            "expected {message:?} in parse error:\n{err}"
+        );
+    }
+
+    #[test]
+    fn parse_bind_section_errors() {
+        // A direct action node and a `press` section both specify the press action, so mixing them
+        // is reported as mixing the two syntaxes rather than as a duplicate `press` section.
+        assert_parse_error(
+            r#"
+            binds {
+                Mod+Q {
+                    close-window;
+                    press { center-column; }
+                }
+            }
+            "#,
+            "cannot mix direct actions with press/release sections",
+        );
+
+        // A second direct action is a duplicate action, not a mix of the two syntaxes.
+        assert_parse_error(
+            r#"
+            binds {
+                Mod+Q {
+                    close-window;
+                    center-column;
+                }
+            }
+            "#,
+            "only one action is allowed per keybind",
+        );
+
+        // A direct action following a `press` section is mixing the two syntaxes.
+        assert_parse_error(
+            r#"
+            binds {
+                Mod+Q {
+                    press { close-window; }
+                    center-column;
+                }
+            }
+            "#,
+            "cannot mix direct actions with press/release sections",
+        );
+
+        // Two `press` sections are still duplicates.
+        assert_parse_error(
+            r#"
+            binds {
+                Mod+Q {
+                    press { close-window; }
+                    press { center-column; }
+                }
+            }
+            "#,
+            "duplicate `press` section",
+        );
+
+        assert_parse_error(
+            r#"
+            binds {
+                Mod+Q {
+                    center-column;
+                    release { close-window; }
+                }
+            }
+            "#,
+            "cannot mix direct actions with press/release sections",
+        );
+
+        assert_parse_error(
+            r#"
+            binds {
+                Mod+Q {
+                    release { close-window; }
+                    center-column;
+                }
+            }
+            "#,
+            "cannot mix direct actions with press/release sections",
+        );
+    }
+
+    #[test]
+    fn parse_bind_bound_action() {
+        let config = do_parse(
+            r#"
+            binds {
+                Mod+A { close-window; }
+                Mod+B {
+                    press { close-window; }
+                }
+                Mod+C {
+                    release { toggle-overview; }
+                }
+                Mod+D {
+                    press { close-window; }
+                    release { toggle-overview; }
+                }
+            }
+            "#,
+        );
+
+        let action = |index: usize| &config.binds.0[index].action;
+
+        // A direct action and a press section both bind only the press phase.
+        assert!(matches!(action(0), BoundAction::Press(Action::CloseWindow)));
+        assert!(matches!(action(1), BoundAction::Press(Action::CloseWindow)));
+
+        // A release section binds only the release phase.
+        assert!(matches!(
+            action(2),
+            BoundAction::Release(Action::ToggleOverview)
+        ));
+
+        // Both sections bind both phases.
+        assert!(matches!(
+            action(3),
+            BoundAction::Both {
+                press: Action::CloseWindow,
+                release: Action::ToggleOverview,
+            }
+        ));
+    }
+
+    #[test]
+    fn parse_bare_modifier_keys() {
+        let config = do_parse(
+            r#"
+            binds {
+                Mod {
+                    release { toggle-overview; }
+                }
+                Ctrl {
+                    release { close-window; }
+                }
+                Shift {
+                    release { close-window; }
+                }
+                Alt {
+                    release { close-window; }
+                }
+                Super {
+                    release { close-window; }
+                }
+                Mod5 {
+                    release { close-window; }
+                }
+                Mod3 {
+                    release { close-window; }
+                }
+
+                Ctrl+Alt_L {
+                    release { close-window; }
+                }
+            }
+            "#,
+        );
+
+        let triggers = config
+            .binds
+            .0
+            .iter()
+            .map(|bind| bind.key.trigger)
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            triggers,
+            vec![
+                Trigger::CompositorMod,
+                Trigger::Modifier(ModKey::Ctrl),
+                Trigger::Modifier(ModKey::Shift),
+                Trigger::Modifier(ModKey::Alt),
+                Trigger::Modifier(ModKey::Super),
+                Trigger::Modifier(ModKey::IsoLevel3Shift),
+                Trigger::Modifier(ModKey::IsoLevel5Shift),
+                Trigger::Keysym(Keysym::Alt_L),
+            ]
+        );
+
+        // Ctrl+Alt_L has modifiers of Ctrl (manually specified) and Alt (implied by the keysym).
+        assert_eq!(
+            config.binds.0[7].key.modifiers,
+            Modifiers::CTRL | Modifiers::ALT
+        );
+    }
+
+    #[test]
+    fn parse_bind_conflicting_modifier_keys() {
+        // A modifier key can be spelled as the modifier itself (`Alt`) or as its keysym (`Alt_L`),
+        // and a modifier key is triggered by either of its keysyms, so one of these two binds
+        // would always shadow the other.
+        assert_parse_error(
+            r#"
+            binds {
+                Alt {
+                    release { toggle-overview; }
+                }
+                Alt_L {
+                    release { close-window; }
+                }
+            }
+            "#,
+            "conflicting keybind later defined here",
+        );
+        assert_parse_error(
+            r#"
+            recent-windows {
+                binds {
+                    Alt+Control_L { next-window; }
+                    Alt+Ctrl { next-window; }
+                }
+            }
+            "#,
+            "conflicting keybind later defined here",
+        );
+
+        // The left and right keysyms are different keys, so those can be bound separately.
+        do_parse(
+            r#"
+            binds {
+                Alt_L {
+                    release { close-window; }
+                }
+                Alt_R {
+                    release { center-column; }
+                }
+            }
+            "#,
+        );
+
+        // A modifier keysym on its own is an ordinary modifier-only bind.
+        let config = do_parse(
+            r#"
+            binds {
+                Alt_L {
+                    release { close-window; }
+                }
+            }
+            "#,
+        );
+        assert!(config.binds.0[0].key.trigger.is_modifier());
+    }
+
+    #[test]
+    fn parse_recent_windows_bind_modifier() {
+        // Modifier-only binds are allowed.
+        do_parse(
+            r#"
+            recent-windows {
+                binds {
+                    Ctrl+Alt_L { next-window; }
+                    Ctrl+Shift { next-window; }
+                }
+            }
+            "#,
+        );
+
+        // Binds must have an extra modifier.
+        assert_parse_error(
+            r#"
+            recent-windows {
+                binds {
+                    Alt_L { next-window; }
+                }
+            }
+            "#,
+            "keybind must have a modifier key",
+        );
+        assert_parse_error(
+            r#"
+            recent-windows {
+                binds {
+                    Alt+Alt_L { next-window; }
+                }
+            }
+            "#,
+            "keybind must have a modifier key",
+        );
+
+        // A trigger with no modifier at all is rejected.
+        assert_parse_error(
+            r#"
+            recent-windows {
+                binds {
+                    Tab { next-window; }
+                }
+            }
+            "#,
+            "keybind must have a modifier key",
+        );
+
+        // Only keyboard keys are supported here for now.
+        assert_parse_error(
+            r#"
+            recent-windows {
+                binds {
+                    Alt+MouseLeft { next-window; }
+                }
+            }
+            "#,
+            "key must be a keyboard key",
+        );
+    }
+
+    #[test]
+    fn parse_bind_redundant_modifiers_are_the_same_bind() {
+        // Redundant modifiers are normalized, so these should error as duplicates.
+        assert_parse_error(
+            r#"
+            binds {
+                Alt_L { close-window; }
+                Alt+Alt_L { center-column; }
+            }
+            "#,
+            "duplicate keybind later defined here",
+        );
+        assert_parse_error(
+            r#"
+            binds {
+                Alt { close-window; }
+                Alt+Alt { center-column; }
+            }
+            "#,
+            "duplicate keybind later defined here",
+        );
+        assert_parse_error(
+            r#"
+            binds {
+                Mod { close-window; }
+                Mod+Mod { center-column; }
+            }
+            "#,
+            "duplicate keybind later defined here",
+        );
+        assert_parse_error(
+            r#"
+            recent-windows {
+                binds {
+                    Alt+Control_L { next-window; }
+                    Alt+Ctrl+Control_L { next-window; }
+                }
+            }
+            "#,
+            "duplicate keybind later defined here",
+        );
     }
 
     #[test]
@@ -950,6 +1424,12 @@ mod tests {
                 Mod+Shift+E allow-inhibiting=false { quit skip-confirmation=true; }
                 Mod+WheelScrollDown cooldown-ms=150 { focus-workspace-down; }
                 Super+Alt+S allow-when-locked=true { spawn-sh "pkill orca || exec orca"; }
+                Mod {
+                    release { toggle-overview; }
+                }
+                Shift+Mod {
+                    release { toggle-window-floating; }
+                }
             }
 
             switch-events {
@@ -2024,8 +2504,11 @@ mod tests {
                                 COMPOSITOR,
                             ),
                         },
-                        action: ToggleKeyboardShortcutsInhibit,
+                        action: Press(
+                            ToggleKeyboardShortcutsInhibit,
+                        ),
                         repeat: true,
+                        pass_through: None,
                         cooldown: None,
                         allow_when_locked: false,
                         allow_inhibiting: false,
@@ -2044,8 +2527,11 @@ mod tests {
                                 SHIFT | COMPOSITOR,
                             ),
                         },
-                        action: ToggleKeyboardShortcutsInhibit,
+                        action: Press(
+                            ToggleKeyboardShortcutsInhibit,
+                        ),
                         repeat: true,
+                        pass_through: None,
                         cooldown: None,
                         allow_when_locked: false,
                         allow_inhibiting: false,
@@ -2060,12 +2546,15 @@ mod tests {
                                 COMPOSITOR,
                             ),
                         },
-                        action: Spawn(
-                            [
-                                "alacritty",
-                            ],
+                        action: Press(
+                            Spawn(
+                                [
+                                    "alacritty",
+                                ],
+                            ),
                         ),
                         repeat: true,
+                        pass_through: None,
                         cooldown: None,
                         allow_when_locked: true,
                         allow_inhibiting: true,
@@ -2080,8 +2569,11 @@ mod tests {
                                 COMPOSITOR,
                             ),
                         },
-                        action: CloseWindow,
+                        action: Press(
+                            CloseWindow,
+                        ),
                         repeat: true,
+                        pass_through: None,
                         cooldown: None,
                         allow_when_locked: false,
                         allow_inhibiting: true,
@@ -2098,8 +2590,11 @@ mod tests {
                                 SHIFT | COMPOSITOR,
                             ),
                         },
-                        action: FocusMonitorLeft,
+                        action: Press(
+                            FocusMonitorLeft,
+                        ),
                         repeat: true,
+                        pass_through: None,
                         cooldown: None,
                         allow_when_locked: false,
                         allow_inhibiting: true,
@@ -2114,10 +2609,13 @@ mod tests {
                                 SHIFT | COMPOSITOR,
                             ),
                         },
-                        action: FocusMonitor(
-                            "eDP-1",
+                        action: Press(
+                            FocusMonitor(
+                                "eDP-1",
+                            ),
                         ),
                         repeat: true,
+                        pass_through: None,
                         cooldown: None,
                         allow_when_locked: false,
                         allow_inhibiting: true,
@@ -2132,8 +2630,11 @@ mod tests {
                                 CTRL | SHIFT | COMPOSITOR,
                             ),
                         },
-                        action: MoveWindowToMonitorRight,
+                        action: Press(
+                            MoveWindowToMonitorRight,
+                        ),
                         repeat: true,
+                        pass_through: None,
                         cooldown: None,
                         allow_when_locked: false,
                         allow_inhibiting: true,
@@ -2148,10 +2649,13 @@ mod tests {
                                 CTRL | ALT | COMPOSITOR,
                             ),
                         },
-                        action: MoveWindowToMonitor(
-                            "eDP-1",
+                        action: Press(
+                            MoveWindowToMonitor(
+                                "eDP-1",
+                            ),
                         ),
                         repeat: true,
+                        pass_through: None,
                         cooldown: None,
                         allow_when_locked: false,
                         allow_inhibiting: true,
@@ -2166,10 +2670,13 @@ mod tests {
                                 CTRL | ALT | COMPOSITOR,
                             ),
                         },
-                        action: MoveGroupToMonitor(
-                            "DP-1",
+                        action: Press(
+                            MoveGroupToMonitor(
+                                "DP-1",
+                            ),
                         ),
                         repeat: true,
+                        pass_through: None,
                         cooldown: None,
                         allow_when_locked: false,
                         allow_inhibiting: true,
@@ -2184,8 +2691,11 @@ mod tests {
                                 COMPOSITOR,
                             ),
                         },
-                        action: ConsumeWindowIntoGroup,
+                        action: Press(
+                            ConsumeWindowIntoGroup,
+                        ),
                         repeat: true,
+                        pass_through: None,
                         cooldown: None,
                         allow_when_locked: false,
                         allow_inhibiting: true,
@@ -2200,12 +2710,15 @@ mod tests {
                                 COMPOSITOR,
                             ),
                         },
-                        action: FocusWorkspace(
-                            Index(
-                                1,
+                        action: Press(
+                            FocusWorkspace(
+                                Index(
+                                    1,
+                                ),
                             ),
                         ),
                         repeat: true,
+                        pass_through: None,
                         cooldown: None,
                         allow_when_locked: false,
                         allow_inhibiting: true,
@@ -2220,12 +2733,15 @@ mod tests {
                                 SHIFT | COMPOSITOR,
                             ),
                         },
-                        action: FocusWorkspace(
-                            Name(
-                                "workspace-1",
+                        action: Press(
+                            FocusWorkspace(
+                                Name(
+                                    "workspace-1",
+                                ),
                             ),
                         ),
                         repeat: true,
+                        pass_through: None,
                         cooldown: None,
                         allow_when_locked: false,
                         allow_inhibiting: true,
@@ -2240,10 +2756,13 @@ mod tests {
                                 SHIFT | COMPOSITOR,
                             ),
                         },
-                        action: Quit(
-                            true,
+                        action: Press(
+                            Quit(
+                                true,
+                            ),
                         ),
                         repeat: true,
+                        pass_through: None,
                         cooldown: None,
                         allow_when_locked: false,
                         allow_inhibiting: false,
@@ -2256,8 +2775,11 @@ mod tests {
                                 COMPOSITOR,
                             ),
                         },
-                        action: FocusWorkspaceDown,
+                        action: Press(
+                            FocusWorkspaceDown,
+                        ),
                         repeat: true,
+                        pass_through: None,
                         cooldown: Some(
                             150ms,
                         ),
@@ -2274,12 +2796,49 @@ mod tests {
                                 ALT | SUPER,
                             ),
                         },
-                        action: SpawnSh(
-                            "pkill orca || exec orca",
+                        action: Press(
+                            SpawnSh(
+                                "pkill orca || exec orca",
+                            ),
                         ),
                         repeat: true,
+                        pass_through: None,
                         cooldown: None,
                         allow_when_locked: true,
+                        allow_inhibiting: true,
+                        hotkey_overlay_title: None,
+                    },
+                    Bind {
+                        key: Key {
+                            trigger: CompositorMod,
+                            modifiers: Modifiers(
+                                COMPOSITOR,
+                            ),
+                        },
+                        action: Release(
+                            ToggleOverview,
+                        ),
+                        repeat: false,
+                        pass_through: None,
+                        cooldown: None,
+                        allow_when_locked: false,
+                        allow_inhibiting: true,
+                        hotkey_overlay_title: None,
+                    },
+                    Bind {
+                        key: Key {
+                            trigger: CompositorMod,
+                            modifiers: Modifiers(
+                                SHIFT | COMPOSITOR,
+                            ),
+                        },
+                        action: Release(
+                            ToggleWindowFloating,
+                        ),
+                        repeat: false,
+                        pass_through: None,
+                        cooldown: None,
+                        allow_when_locked: false,
                         allow_inhibiting: true,
                         hotkey_overlay_title: None,
                     },
@@ -2335,6 +2894,7 @@ mod tests {
                 deactivate_unfocused_windows: false,
                 skip_cursor_only_updates_during_vrr: false,
                 disable_10bit_output: false,
+                nested_show_host_cursor: false,
             },
             workspaces: [
                 Workspace {
@@ -2396,14 +2956,17 @@ mod tests {
                                 ALT,
                             ),
                         },
-                        action: MruAdvance {
-                            direction: Forward,
-                            scope: None,
-                            filter: Some(
-                                All,
-                            ),
-                        },
+                        action: Press(
+                            MruAdvance {
+                                direction: Forward,
+                                scope: None,
+                                filter: Some(
+                                    All,
+                                ),
+                            },
+                        ),
                         repeat: true,
+                        pass_through: None,
                         cooldown: None,
                         allow_when_locked: false,
                         allow_inhibiting: true,
@@ -2418,14 +2981,17 @@ mod tests {
                                 ALT,
                             ),
                         },
-                        action: MruAdvance {
-                            direction: Forward,
-                            scope: None,
-                            filter: Some(
-                                AppId,
-                            ),
-                        },
+                        action: Press(
+                            MruAdvance {
+                                direction: Forward,
+                                scope: None,
+                                filter: Some(
+                                    AppId,
+                                ),
+                            },
+                        ),
                         repeat: true,
+                        pass_through: None,
                         cooldown: None,
                         allow_when_locked: false,
                         allow_inhibiting: true,
@@ -2440,16 +3006,19 @@ mod tests {
                                 SUPER,
                             ),
                         },
-                        action: MruAdvance {
-                            direction: Forward,
-                            scope: Some(
-                                Output,
-                            ),
-                            filter: Some(
-                                All,
-                            ),
-                        },
+                        action: Press(
+                            MruAdvance {
+                                direction: Forward,
+                                scope: Some(
+                                    Output,
+                                ),
+                                filter: Some(
+                                    All,
+                                ),
+                            },
+                        ),
                         repeat: true,
+                        pass_through: None,
                         cooldown: None,
                         allow_when_locked: false,
                         allow_inhibiting: true,
@@ -2672,12 +3241,16 @@ mod tests {
         ];
         for (name, expected) in cases {
             let config = do_parse(&format!("binds {{ Mod+T {{ {name}; }}\n}}"));
-            assert_eq!(config.binds.0[0].action, expected, "`{name}`");
+            assert_eq!(
+                config.binds.0[0].action,
+                BoundAction::Press(expected),
+                "`{name}`"
+            );
         }
         let config = do_parse("binds { Mod+T { move-group-to-workspace-left focus=false; }\n}");
         assert_eq!(
             config.binds.0[0].action,
-            Action::MoveGroupToWorkspaceLeft(false)
+            BoundAction::Press(Action::MoveGroupToWorkspaceLeft(false))
         );
     }
 
@@ -2754,7 +3327,11 @@ mod tests {
         ];
         for (name, expected) in cases {
             let config = do_parse(&format!("binds {{ Mod+T {{ {name}; }}\n}}"));
-            assert_eq!(config.binds.0[0].action, expected, "`{name}`");
+            assert_eq!(
+                config.binds.0[0].action,
+                BoundAction::Press(expected),
+                "`{name}`"
+            );
         }
     }
 
@@ -2775,7 +3352,11 @@ mod tests {
         ];
         for (name, expected) in cases {
             let config = do_parse(&format!("binds {{ Mod+T {{ {name}; }}\n}}"));
-            assert_eq!(config.binds.0[0].action, expected, "`{name}`");
+            assert_eq!(
+                config.binds.0[0].action,
+                BoundAction::Press(expected),
+                "`{name}`"
+            );
         }
     }
 
@@ -2873,7 +3454,11 @@ mod tests {
         ];
         for (name, expected) in cases {
             let config = do_parse(&format!("binds {{ Mod+T {{ {name}; }}\n}}"));
-            assert_eq!(config.binds.0[0].action, expected, "`{name}`");
+            assert_eq!(
+                config.binds.0[0].action,
+                BoundAction::Press(expected),
+                "`{name}`"
+            );
         }
     }
 
