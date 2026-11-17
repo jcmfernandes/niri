@@ -3389,8 +3389,9 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             let view_loc = self.map_point_out(main_space_vec(self.view_main_pos()));
             let view_rect = Rectangle::new(view_loc, view_size);
             for closing in self.closing_windows.iter().rev() {
-                let elem = closing.render(ctx.as_gles(), view_rect, scale);
-                push(elem.into());
+                if let Some(elem) = closing.render(ctx.as_gles(), view_rect, scale) {
+                    push(elem.into());
+                }
             }
         }
 

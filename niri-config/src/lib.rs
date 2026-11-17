@@ -1641,6 +1641,7 @@ mod tests {
                 ),
                 focus_follows_mouse: Some(
                     FocusFollowsMouse {
+                        outputs_only: None,
                         max_scroll_amount: None,
                     },
                 ),
@@ -2460,7 +2461,10 @@ mod tests {
                     excludes: [],
                     opacity: None,
                     block_out_from: Some(
-                        Screencast,
+                        BlockOutFrom {
+                            target: Screencast,
+                            kind: Fill,
+                        },
                     ),
                     shadow: ShadowRule {
                         off: false,
@@ -2474,6 +2478,7 @@ mod tests {
                     },
                     geometry_corner_radius: None,
                     place_within_backdrop: None,
+                    focus_on_type_in_overview: None,
                     baba_is_float: None,
                     background_effect: BackgroundEffectRule {
                         xray: None,
